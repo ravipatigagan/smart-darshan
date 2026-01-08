@@ -1,8 +1,9 @@
 {
   "name": "DivyaDrishti - Smart Crowd Management",
-  "description": "AI-Enabled Intelligent Crowd Management and Devotee Assistance Platform for the Endowments Department of Andhra Pradesh. Features real-time video analytics simulation, predictive modeling, and a multilingual virtual assistant.",
+  "description": "AI-Enabled Intelligent Crowd Management and Devotee Assistance Platform. Features real-time AI early warning systems for anomaly detection (stampedes/bottlenecks), predictive modeling, and automated re-routing strategies.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ]
 }

@@ -1,114 +1,248 @@
-import { GoogleGenAI } from "@google/genai";
+
+import { GoogleGenAI, Modality } from "@google/genai";
 import { Language, CrowdMetric } from "../types";
 
-// --- KNOWLEDGE BASE FOR DWARAKATIRUMALA (CHINNA TIRUPATHI) ---
-const TEMPLE_KNOWLEDGE = [
-  {
-    keywords: ['location', 'where', 'place', 'eluru', 'district', 'village'],
-    response: "Sri Venkateswara Swamy Vari Devasthanam is located in Dwarakatirumala Village/Mandal, Eluru District, Andhra Pradesh. Coordinates: 16.9499° N, 81.2991° E."
-  },
-  {
-    keywords: ['darshan', 'timing', 'open', 'close', 'hours', 'time', 'peak'],
-    response: "General Darshan timings are from 4:00 AM to 10:00 PM. Peak hours are typically 8:00 AM to 1:30 PM. Please plan accordingly to avoid long wait times."
-  },
-  {
-    keywords: ['gate', 'entry', 'exit', 'gopuram', 'south', 'north', 'east', 'west'],
-    response: "Gate Access:\n1. South Raja Gopuram (Main Entry/Exit)\n2. East Gopuram\n3. West Gopuram\n4. North Gopuram (Entry ONLY).\nPlease follow the one-way flow system."
-  },
-  {
-    keywords: ['annadanam', 'food', 'meal', 'lunch'],
-    response: "Free Annadanam is served daily at the dedicated Annadanam Hall. Follow signs from the core temple area."
-  },
-  {
-    keywords: ['hair', 'tonsure', 'kesakandana', 'shave'],
-    response: "Kesakandana Sala (Tonsuring facility) is located near the main queue complex. Tickets and tokens are available at the entrance."
-  },
-  {
-    keywords: ['parking', 'vehicle', 'car', 'bus', 'road'],
-    response: "Parking is available in designated areas near the temple roads. CCTV coverage (Hikvision 4MP) monitors all parking lots for safety."
-  },
-  {
-    keywords: ['emergency', 'medical', 'aid', 'first aid', 'doctor'],
-    response: "Medical First Aid support is available near the administrative zone. For emergencies, contact the main Control Room immediately."
-  },
-  {
-    keywords: ['gosala', 'cow', 'animal'],
-    response: "The Devasthanam maintains a Gosala which is open for devotee visits. It is located slightly away from the core temple area."
-  },
-  {
-    keywords: ['hi', 'hello', 'namaste', 'namaskaram', 'start'],
-    response: "Namaskaram! 🙏 I am DivyaSahayak, the intelligent assistant for Dwarakatirumala (Chinna Tirupati). How can I help you with Darshan, Amenities, or Safety today?"
-  }
-];
-
-export const PA_TEMPLATES = {
-  CRITICAL_CROWD: "Attention devotees at Dwarakatirumala. High density detected in the Queue Complex. Please maintain order and move slowly.",
-  GATE_DIVERSION: "Devotees, please note: North Gopuram is for Entry Only. For exit, please move towards South Raja Gopuram or East Gopuram.",
-  EMERGENCY_CLEAR: "Emergency Alert. Clear the central corridor for medical support vehicle movement immediately.",
-  LOST_CHILD: "Announcement: A child has been found near Kesakandana Sala. Please report to the Enquiry Counter.",
-  PEAK_ADVISORY: "Advisory: We are currently in the peak period (8:00 AM - 1:30 PM). Expect wait times of 90+ minutes."
-};
-
-// Fix: Define the missing OptimizationSuggestion interface
-export interface OptimizationSuggestion {
-  id: string;
-  type: string;
-  action: string;
-  reason: string;
-  impact: string;
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+export interface GroundingLink {
+  uri: string;
+  title: string;
 }
 
-const OPTIMIZATION_STRATEGIES = {
-  CRITICAL: [
-    { id: 'c1', type: 'GATE', action: "Divert to East Gopuram", reason: "South Raja Gopuram Congestion > 85%", impact: "Balance load across gates", priority: 'HIGH' },
-    { id: 'c2', type: 'STAFF', action: "Deploy Stampede Prevention Drill", reason: "Density Anomaly at Queue Entry", impact: "Ensure pilgrim safety", priority: 'HIGH' }
-  ],
-  MODERATE: [
-    { id: 'm1', type: 'STAFF', action: "Activate Additional Counters", reason: "Wait time exceeding 45 mins", impact: "Reduce queue length", priority: 'MEDIUM' }
-  ],
-  NORMAL: [
-    { id: 'n1', type: 'GATE', action: "Standard Gate Operations", reason: "Flow is optimal", impact: "Maintain efficiency", priority: 'LOW' }
-  ]
-};
+export interface ChatAIResponse {
+  text: string;
+  groundingLinks?: GroundingLink[];
+  isGroundingActive?: boolean;
+}
 
-export const getChatResponse = async (message: string, language: Language, isOffline: boolean): Promise<string> => {
-  if (!isOffline && process.env.API_KEY) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `User: "${message}". Dwarakatirumala context. Gates: South Raja, East, West, North(Entry). Peak: 8am-1:30pm.`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { systemInstruction: "You are DivyaSahayak for Dwarakatirumala. Be brief, helpful, and culturally respectful." }
-      });
-      if (response.text) return response.text;
-    } catch (e) { console.warn("Gemini Error", e); }
+export interface EarlyWarningAnalysis {
+  status: 'SAFE' | 'WARNING' | 'CRITICAL';
+  anomalies: string[];
+  reRoutingStrategy: string;
+  paMessage: string;
+  confidence: number;
+}
+
+// --- AUDIO PROCESSING HELPERS ---
+
+function decodeBase64(base64: string) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
   }
-  let lower = message.toLowerCase();
-  let found = TEMPLE_KNOWLEDGE.find(k => k.keywords.some(kw => lower.includes(kw)));
-  return found ? found.response : "I can help with Dwarakatirumala Darshan, Gopuram gates, and amenities. Could you be more specific?";
+  return bytes;
+}
+
+async function decodeRawPcmToBuffer(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
+const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+
+/**
+ * Synthesizes text using Gemini 2.5 Flash TTS.
+ */
+const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<AudioBuffer | null> => {
+  if (!process.env.API_KEY) return null;
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName },
+          },
+        },
+      },
+    });
+
+    const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Data) return null;
+
+    return await decodeRawPcmToBuffer(
+      decodeBase64(base64Data),
+      audioCtx,
+      24000,
+      1
+    );
+  } catch (e) {
+    console.error("TTS Synthesis Error:", e);
+    return null;
+  }
 };
 
-export const analyzeCrowdData = async (metrics: CrowdMetric[]): Promise<string> => {
-  const max = Math.max(...metrics.map(m => m.density));
-  if (max > 85) return "🔴 CRITICAL: South Raja Gopuram bottleneck. Divert new arrivals to East Gate.";
-  if (max > 65) return "⚠ MODERATE: Increasing flow at Kesakandana Sala. Deploy extra volunteers.";
-  return "✓ NORMAL: Crowd flow within safe limits for Chinna Tirupathi.";
+/**
+ * Translates text using Gemini 3 Flash.
+ */
+const translateWithGemini = async (text: string, targetLang: string): Promise<string> => {
+  if (!process.env.API_KEY) return text;
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Translate the following temple alert to ${targetLang}. Return ONLY the translated text: "${text}"`,
+    });
+    return response.text || text;
+  } catch (e) {
+    console.error("Translation Error:", e);
+    return text;
+  }
 };
 
-// Fix: Use the exported OptimizationSuggestion interface for type safety
-export const getOptimizationRecommendations = (metrics: CrowdMetric[]): OptimizationSuggestion[] => {
-  const avg = metrics.reduce((acc, m) => acc + m.density, 0) / (metrics.length || 1);
-  if (avg > 75) return OPTIMIZATION_STRATEGIES.CRITICAL as OptimizationSuggestion[];
-  if (avg > 50) return OPTIMIZATION_STRATEGIES.MODERATE as OptimizationSuggestion[];
-  return OPTIMIZATION_STRATEGIES.NORMAL as OptimizationSuggestion[];
+// --- CORE AI SERVICES ---
+
+export const analyzeCrowdSafety = async (metrics: CrowdMetric[]): Promise<EarlyWarningAnalysis> => {
+  if (!process.env.API_KEY) {
+    return {
+      status: 'SAFE',
+      anomalies: ['AI Offline'],
+      reRoutingStrategy: 'Standard operating procedure.',
+      paMessage: 'Please follow queue discipline.',
+      confidence: 0.5
+    };
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const metricsJson = JSON.stringify(metrics);
+
+  const prompt = `
+    Analyze live crowd metrics for Dwarakatirumala Temple: ${metricsJson}
+    Predict potential anomalies: Bottlenecks, Stampede risks, or Gate overflows.
+    Note: North Gate is ENTRY ONLY. South is Main Exit.
+    
+    Return status (SAFE/WARNING/CRITICAL), anomalies list, re-routing strategy, and PA announcement script.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+        temperature: 0.1,
+      },
+    });
+
+    const text = response.text || "";
+    const status: any = text.includes('CRITICAL') ? 'CRITICAL' : text.includes('WARNING') ? 'WARNING' : 'SAFE';
+    
+    return {
+      status,
+      anomalies: text.split('\n').filter(l => l.includes('-') || l.includes('•')).slice(0, 3),
+      reRoutingStrategy: text.split('Strategy:')[1]?.split('Announcement:')[0]?.trim() || "Maintain current gate status.",
+      paMessage: text.split('Announcement:')[1]?.trim() || "Pilgrims are advised to follow the queue complex markers.",
+      confidence: 0.95
+    };
+  } catch (error) {
+    console.error("Safety Analysis Error:", error);
+    return { status: 'SAFE', anomalies: [], reRoutingStrategy: 'Normal', paMessage: 'Systems monitoring.', confidence: 0 };
+  }
 };
 
-export const playPAAnnouncement = (text: string) => {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.9;
-  window.speechSynthesis.speak(utterance);
+/**
+ * Advanced PA Announcement System.
+ * Automatically translates to Telugu and plays Telugu FIRST, then English.
+ */
+export const playPAAnnouncement = async (text: string, sourceLang: Language = Language.ENGLISH) => {
+  console.log(`[PA SYSTEM] Sequential Alert Triggered: Telugu then English.`);
+  
+  let teluguText = "";
+  let englishText = "";
+
+  if (sourceLang === Language.TELUGU) {
+    teluguText = text;
+    englishText = await translateWithGemini(text, "English");
+  } else {
+    englishText = text;
+    teluguText = await translateWithGemini(text, "Telugu");
+  }
+
+  const teluguBuffer = await synthesizeTts(teluguText);
+  const englishBuffer = await synthesizeTts(englishText);
+
+  const play = (buffer: AudioBuffer, delay: number = 0) => {
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.start(audioCtx.currentTime + delay);
+  };
+
+  if (teluguBuffer) {
+    play(teluguBuffer, 0);
+    if (englishBuffer) {
+      play(englishBuffer, teluguBuffer.duration + 0.5); // 0.5s pause
+    }
+  } else if (englishBuffer) {
+    play(englishBuffer, 0);
+  }
+};
+
+export const getChatResponse = async (
+  message: string, 
+  language: Language, 
+  isOffline: boolean
+): Promise<ChatAIResponse> => {
+  if (isOffline || !process.env.API_KEY) {
+    return { text: "Offline mode active. Dwarakatirumala timings: 4 AM - 10 PM." };
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const needsMaps = message.toLowerCase().includes('location') || message.toLowerCase().includes('where');
+
+  const datasetPrompt = `You are DivyaSahayak for Dwarakatirumala Temple. Be concise and respectful.`;
+
+  try {
+    if (needsMaps) {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `${datasetPrompt}\nQuestion: ${message}`,
+        config: {
+          tools: [{ googleMaps: {} }],
+          toolConfig: { retrievalConfig: { latLng: { latitude: 16.9499, longitude: 81.2991 } } }
+        },
+      });
+      const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.filter((c: any) => c.maps).map((c: any) => ({ uri: c.maps.uri, title: c.maps.title })) || [];
+      return { text: response.text || "Dataset match.", groundingLinks: links, isGroundingActive: true };
+    } else {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents: `${datasetPrompt}\nQuestion: ${message}`,
+      });
+      return { text: response.text || "Namaskaram.", isGroundingActive: false };
+    }
+  } catch (error) {
+    return { text: "Systems momentarily busy. Please try again." };
+  }
+};
+
+export const PA_TEMPLATES: Record<string, Record<Language, string>> = {
+  CRITICAL_CROWD: {
+    [Language.ENGLISH]: "Attention. High density at Queue Complex. Move slowly.",
+    [Language.TELUGU]: "భక్తులారా గమనించండి. క్యూ కాంప్లెక్స్ వద్ద రద్దీ ఎక్కువగా ఉంది.",
+    [Language.HINDI]: "ध्यान दें। कतार परिसर में भीड़ अधिक है।"
+  },
+  GATE_RULE: {
+    [Language.ENGLISH]: "North Gopuram is for Entry Only. Please exit via South Raja Gopuram.",
+    [Language.TELUGU]: "ఉత్తర గోపురం ప్రవేశానికి మాత్రమే. దక్షిణ రాజ గోపురం నుండి నిష్క్రమించండి.",
+    [Language.HINDI]: "उत्तर गोपुरम केवल प्रवेश के लिए है। दक्षिण राजा గోపురం से बाहर निकलें।"
+  }
 };

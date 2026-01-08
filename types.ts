@@ -1,3 +1,4 @@
+
 export enum AppView {
   DASHBOARD = 'DASHBOARD',
   ANALYTICS = 'ANALYTICS',
@@ -9,6 +10,25 @@ export enum Language {
   TELUGU = 'Telugu',
   HINDI = 'Hindi',
   ENGLISH = 'English',
+}
+
+export type StaffRole = 'SECURITY' | 'VOLUNTEER' | 'MEDICAL' | 'ADMIN' | 'ALL';
+
+export interface EnterpriseGatewayConfig {
+  whatsappToken: string;
+  phoneNumberId: string;
+  officialSenderName: string;
+  gatewayStatus: 'CONNECTED' | 'DISCONNECTED' | 'STANDBY';
+  useCorsProxy: boolean;
+}
+
+export interface StaffAlert {
+  id: string;
+  role: StaffRole;
+  message: string;
+  sender: string;
+  timestamp: Date;
+  isRead: boolean;
 }
 
 export interface ChatMessage {
@@ -34,11 +54,4 @@ export interface Alert {
   message: string;
   timestamp: Date;
   zone?: string;
-}
-
-export interface GateStatus {
-  id: string;
-  name: string;
-  status: 'OPEN' | 'CLOSED' | 'RESTRICTED';
-  queueWaitTime: number; // minutes
 }

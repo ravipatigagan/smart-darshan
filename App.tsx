@@ -3,17 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp, Flame, Building2, ClipboardCheck, PlusCircle, ShieldAlert
 } from 'lucide-react';
-import { AppView, CrowdMetric, Language, StaffRole, EnterpriseGatewayConfig, ProposedAlert, AlertAuditEntry, IncidentLifecycle } from './types';
+import { AppView, CrowdMetric, Language, StaffRole, EnterpriseGatewayConfig, ProposedAlert, AlertAuditEntry, IncidentLifecycle, TempleStatus } from './types';
 import { FootfallPredictionChart, GateLoadChart } from './components/CrowdCharts';
 import { DevoteeAssistant } from './components/DevoteeAssistant';
 import { VideoAnalytics } from './components/VideoAnalytics';
 import { CrowdHeatmap } from './components/CrowdHeatmap';
 import { DevoteeAlertPortal } from './components/DevoteeAlertPortal';
 import { AdminAlertControl } from './components/AdminAlertControl';
-import { EndowmentsDashboard } from './components/EndowmentsDashboard';
+import { EndowmentsDashboard, MOCK_TEMPLES } from './components/EndowmentsDashboard';
 import { ComplianceVault } from './components/ComplianceVault';
 import { TempleOnboarding } from './components/TempleOnboarding';
 import { EmergencyOversight } from './components/EmergencyOversight';
+import { TempleDetailView } from './components/TempleDetailView';
 import { playPAAnnouncement, PA_TEMPLATES, analyzeCrowdSafety, EarlyWarningAnalysis } from './services/geminiService';
 import { dispatchOfficialNotification } from './services/notificationService';
 
@@ -26,6 +27,34 @@ const NavItem = (props: { view: AppView; icon: any; label: string; currentView: 
     </button>
   );
 };
+
+// --- MOCK INCIDENT DATA FOR POC ---
+const INITIAL_MOCK_INCIDENTS: IncidentLifecycle[] = [
+  {
+    id: 'INC-8821',
+    category: 'CONGESTION',
+    severity: 'WARNING',
+    description: 'High density detected at South Raja Gopuram. Flow rate dropped to 8 persons/min.',
+    t1_detected: new Date(Date.now() - 3600000), // 1 hour ago
+    t2_approved: new Date(Date.now() - 3540000), // +1 min
+    t3_dispatched: new Date(Date.now() - 3535000), // +5 sec
+    t4_resolved: new Date(Date.now() - 2400000), // 40 mins ago
+    adminInvolved: 'CHIEF_COMMANDER_ALPHA',
+    status: 'RESOLVED'
+  },
+  {
+    id: 'INC-9012',
+    category: 'EMERGENCY',
+    severity: 'CRITICAL',
+    description: 'Potential bottleneck anomaly detected in Queue Complex Hall 4. Risk of secondary surge.',
+    t1_detected: new Date(Date.now() - 7200000), // 2 hours ago
+    t2_approved: new Date(Date.now() - 7180000), // +20 sec
+    t3_dispatched: new Date(Date.now() - 7175000), // +5 sec
+    t4_resolved: new Date(Date.now() - 6000000), // 1.6 hours ago
+    adminInvolved: 'SYSTEM_FAILSAFE_AUTO',
+    status: 'RESOLVED'
+  }
+];
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
@@ -40,10 +69,14 @@ const App: React.FC = () => {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [lastDispatchStatus, setLastDispatchStatus] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // SHARED STATE FOR TEMPLES
+  const [temples, setTemples] = useState<TempleStatus[]>(MOCK_TEMPLES);
+  const [selectedTemple, setSelectedTemple] = useState<TempleStatus | null>(null);
 
   const [proposedAlerts, setProposedAlerts] = useState<ProposedAlert[]>([]);
   const [auditLogs, setAuditLogs] = useState<AlertAuditEntry[]>([]);
-  const [incidents, setIncidents] = useState<IncidentLifecycle[]>([]);
+  const [incidents, setIncidents] = useState<IncidentLifecycle[]>(INITIAL_MOCK_INCIDENTS);
   const [staffNotification, setStaffNotification] = useState<{message: string; severity: string} | null>(null);
 
   const [weather] = useState({ temp: 31, condition: 'Clear', humidity: 62 });
@@ -102,7 +135,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     runAnalysis();
-    // Increased interval to 45s to avoid hitting Gemini rate limits
     const interval = setInterval(() => runAnalysis(), 45000);
     return () => clearInterval(interval);
   }, [metrics]);
@@ -174,9 +206,18 @@ const App: React.FC = () => {
     setIsSynthesizing(false);
   };
 
+  const handleViewTempleDetails = (temple: TempleStatus) => {
+    setSelectedTemple(temple);
+    setCurrentView(AppView.TEMPLE_DETAILS);
+  };
+
+  const handleOnboardComplete = (newTemple: TempleStatus) => {
+    setTemples(prev => [newTemple, ...prev]);
+    setCurrentView(AppView.ENDOWMENTS_OVERVIEW);
+  };
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden relative font-sans text-[13px]">
-      
       {staffNotification && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10 fade-in duration-500 w-full max-w-xl px-4">
           <div className={`backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 flex items-center gap-5 ${
@@ -415,11 +456,27 @@ const App: React.FC = () => {
             </>
           )}
 
-          {currentView === AppView.ENDOWMENTS_OVERVIEW && <EndowmentsDashboard onOnboardClick={() => setCurrentView(AppView.TEMPLE_ONBOARDING)} />}
+          {currentView === AppView.ENDOWMENTS_OVERVIEW && (
+            <EndowmentsDashboard 
+              temples={temples}
+              onOnboardClick={() => setCurrentView(AppView.TEMPLE_ONBOARDING)} 
+              onViewDetails={handleViewTempleDetails}
+            />
+          )}
+
+          {currentView === AppView.TEMPLE_DETAILS && selectedTemple && (
+            <TempleDetailView 
+              temple={selectedTemple} 
+              onBack={() => {
+                setSelectedTemple(null);
+                setCurrentView(AppView.ENDOWMENTS_OVERVIEW);
+              }}
+            />
+          )}
           
           {currentView === AppView.EMERGENCY_OVERSIGHT && <EmergencyOversight incidents={incidents} />}
 
-          {currentView === AppView.TEMPLE_ONBOARDING && <TempleOnboarding />}
+          {currentView === AppView.TEMPLE_ONBOARDING && <TempleOnboarding onComplete={handleOnboardComplete} />}
 
           {currentView === AppView.COMPLIANCE_VAULT && <ComplianceVault incidents={incidents} />}
 
@@ -441,7 +498,7 @@ const App: React.FC = () => {
                         <button onClick={() => {
                           localStorage.setItem('svsd_gateway_config', JSON.stringify(gatewayConfig));
                           alert("Architecture Updated.");
-                        }} className="w-full bg-slate-900 text-white py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl flex items-center justify-center gap-2">
+                        }} className="w-full bg-slate-900 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2">
                            <Zap size={16} className="text-orange-500" /> Synchronize Operational Grid
                         </button>
                     </div>

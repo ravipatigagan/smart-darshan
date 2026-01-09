@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, MapPin, Users, AlertTriangle, CheckCircle2, 
-  TrendingUp, Clock, Info, Globe, ShieldCheck, Activity, BarChart, Plus
+  TrendingUp, Clock, Info, Globe, ShieldCheck, Activity, BarChart, Plus, Zap
 } from 'lucide-react';
 import { TempleStatus } from '../types';
 
-const MOCK_TEMPLES: TempleStatus[] = [
+export const MOCK_TEMPLES: TempleStatus[] = [
   {
     id: 'dt-01',
     name: 'Dwaraka Tirumala (Chinna Tirupati)',
@@ -65,16 +65,23 @@ const MOCK_TEMPLES: TempleStatus[] = [
 ];
 
 interface EndowmentsDashboardProps {
+  temples: TempleStatus[];
   onOnboardClick?: () => void;
+  onViewDetails?: (temple: TempleStatus) => void;
 }
 
-export const EndowmentsDashboard: React.FC<EndowmentsDashboardProps> = ({ onOnboardClick }) => {
-  const [temples, setTemples] = useState<TempleStatus[]>(MOCK_TEMPLES);
+export const EndowmentsDashboard: React.FC<EndowmentsDashboardProps> = ({ temples: initialTemples, onOnboardClick, onViewDetails }) => {
+  const [localTemples, setLocalTemples] = useState<TempleStatus[]>(initialTemples);
+
+  // Sync with props when a new temple is added externally
+  useEffect(() => {
+    setLocalTemples(initialTemples);
+  }, [initialTemples]);
 
   // Simulate live fluctuations for demo
   useEffect(() => {
     const interval = setInterval(() => {
-      setTemples(prev => prev.map(t => ({
+      setLocalTemples(prev => prev.map(t => ({
         ...t,
         density: Math.max(10, Math.min(100, t.density + (Math.random() * 4 - 2))),
         lastUpdate: new Date()
@@ -83,8 +90,8 @@ export const EndowmentsDashboard: React.FC<EndowmentsDashboardProps> = ({ onOnbo
     return () => clearInterval(interval);
   }, []);
 
-  const totalPilgrims = temples.reduce((acc, t) => acc + (t.density * 100), 0);
-  const criticalCount = temples.filter(t => t.status === 'CRITICAL').length;
+  const totalPilgrims = localTemples.reduce((acc, t) => acc + (t.density * 100), 0);
+  const criticalCount = localTemples.filter(t => t.status === 'CRITICAL').length;
 
   return (
     <div className="space-y-6">
@@ -132,8 +139,15 @@ export const EndowmentsDashboard: React.FC<EndowmentsDashboardProps> = ({ onOnbo
 
       {/* Temple Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {temples.map(t => (
-          <div key={t.id} className="bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group">
+        {localTemples.map(t => (
+          <div key={t.id} className="bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group relative">
+            {t.id.startsWith('new-') && (
+              <div className="absolute top-2 right-2 z-10">
+                 <span className="bg-indigo-600 text-white text-[7px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1">
+                   <Zap size={8} /> LIVE_SYNC
+                 </span>
+              </div>
+            )}
             <div className="p-6 border-b flex justify-between items-start">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -192,7 +206,10 @@ export const EndowmentsDashboard: React.FC<EndowmentsDashboardProps> = ({ onOnbo
                   <Clock size={12} className="text-slate-400" />
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Synced: {t.lastUpdate.toLocaleTimeString()}</span>
                </div>
-               <button className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 hover:underline">
+               <button 
+                 onClick={() => onViewDetails?.(t)}
+                 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1 hover:underline"
+               >
                   View Detail <TrendingUp size={12} />
                </button>
             </div>
@@ -204,9 +221,9 @@ export const EndowmentsDashboard: React.FC<EndowmentsDashboardProps> = ({ onOnbo
          <div className="absolute top-0 right-0 p-8 opacity-5"><ShieldCheck size={120} /></div>
          <div className="bg-white/10 p-5 rounded-3xl border border-white/10 relative z-10"><Info size={32} /></div>
          <div className="flex-1 space-y-2 relative z-10 text-center md:text-left">
-            <h5 className="text-lg font-bold tracking-tight">Endowments Department Read-Only Protocol</h5>
+            <h5 className="text-lg font-bold tracking-tight">Replication-Ready Architecture</h5>
             <p className="text-sm text-indigo-200 leading-relaxed opacity-80">
-              This dashboard provides state-level visibility for strategic resource allocation. Use the <b>"Onboard New Shrine"</b> feature to integrate additional temples into the DivyaDrishti AI monitoring grid.
+              The DivyaDrishti grid supports near-instant shrine synchronization. Once an administrator completes the digital twin onboarding, the node is broadcasted across the state-level command layer.
             </p>
          </div>
          <div className="flex gap-4 shrink-0 relative z-10">

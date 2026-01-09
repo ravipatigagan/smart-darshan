@@ -5,9 +5,13 @@ import {
   Save, CheckCircle2, ShieldPlus, ChevronRight, Info,
   Map, Database, Zap, Sparkles
 } from 'lucide-react';
-import { TempleConfig, ZoneConfig } from '../types';
+import { TempleConfig, ZoneConfig, TempleStatus } from '../types';
 
-export const TempleOnboarding: React.FC = () => {
+interface TempleOnboardingProps {
+  onComplete?: (newTemple: TempleStatus) => void;
+}
+
+export const TempleOnboarding: React.FC<TempleOnboardingProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [config, setConfig] = useState<Partial<TempleConfig>>({
     archetype: 'QUAD_GOPURAM',
@@ -18,7 +22,7 @@ export const TempleOnboarding: React.FC = () => {
   const addZone = () => {
     const newZone: ZoneConfig = {
       id: Math.random().toString(36).substr(2, 5),
-      name: `Zone ${config.zones?.length || 0 + 1}`,
+      name: `Zone ${config.zones?.length ? config.zones.length + 1 : 1}`,
       type: 'QUEUE',
       cctvCount: 1
     };
@@ -27,6 +31,28 @@ export const TempleOnboarding: React.FC = () => {
 
   const removeZone = (id: string) => {
     setConfig(prev => ({ ...prev, zones: prev.zones?.filter(z => z.id !== id) }));
+  };
+
+  const handleFinalize = () => {
+    if (!config.name) {
+      alert("Please enter a Temple Name to proceed.");
+      return;
+    }
+
+    // Create a new status object for the hub
+    const newTemple: TempleStatus = {
+      id: `new-${Date.now()}`,
+      name: config.name || 'Unnamed Shrine',
+      location: config.district || 'Unassigned District',
+      density: 15 + Math.random() * 20, // Initial nominal load
+      status: 'SAFE',
+      activeAlerts: 0,
+      incidentCount: 0,
+      lastUpdate: new Date(),
+      isMock: true
+    };
+
+    onComplete?.(newTemple);
   };
 
   return (
@@ -60,7 +86,7 @@ export const TempleOnboarding: React.FC = () => {
                      <input 
                        className="w-full bg-slate-50 border rounded-2xl px-5 py-4 text-sm font-semibold outline-none focus:ring-4 focus:ring-orange-500/5 transition-all"
                        placeholder="e.g., Ahobilam Narasimha Swamy Temple"
-                       value={config.name}
+                       value={config.name || ''}
                        onChange={(e) => setConfig({...config, name: e.target.value})}
                      />
                    </div>
@@ -69,7 +95,7 @@ export const TempleOnboarding: React.FC = () => {
                      <input 
                        className="w-full bg-slate-50 border rounded-2xl px-5 py-4 text-sm font-semibold outline-none focus:ring-4 focus:ring-orange-500/5 transition-all"
                        placeholder="e.g., Nandyal"
-                       value={config.district}
+                       value={config.district || ''}
                        onChange={(e) => setConfig({...config, district: e.target.value})}
                      />
                    </div>
@@ -159,7 +185,7 @@ export const TempleOnboarding: React.FC = () => {
 
           {step === 3 && (
             <div className="bg-white border rounded-3xl p-8 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-center">
-               <div className="bg-green-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto text-green-600 mb-6">
+               <div className="bg-green-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto text-green-600 mb-6 shadow-inner">
                  <ShieldPlus size={48} className="animate-bounce" />
                </div>
                <div className="space-y-2">
@@ -173,11 +199,15 @@ export const TempleOnboarding: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[10px] font-black text-slate-400 uppercase">Zones Mapped</span>
-                    <span className="text-[10px] font-black text-slate-900 uppercase">{config.zones?.length} Zones</span>
+                    <span className="text-[10px] font-black text-slate-900 uppercase">{config.zones?.length || 0} Zones</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[10px] font-black text-slate-400 uppercase">Archetype</span>
                     <span className="text-[10px] font-black text-slate-900 uppercase">{config.archetype}</span>
+                  </div>
+                  <div className="pt-2 border-t flex items-center gap-2">
+                    <Zap size={12} className="text-indigo-600" />
+                    <span className="text-[9px] font-black text-indigo-600 uppercase">READY FOR HUB REPLICATION</span>
                   </div>
                </div>
             </div>
@@ -192,7 +222,7 @@ export const TempleOnboarding: React.FC = () => {
               Back
             </button>
             <button 
-              onClick={() => step === 3 ? alert("System Deployed (PoC Mode)") : setStep(step + 1)}
+              onClick={() => step === 3 ? handleFinalize() : setStep(step + 1)}
               className="bg-slate-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-black shadow-xl"
             >
               {step === 3 ? 'Deploy Node' : 'Continue'} <ArrowRight size={16} />

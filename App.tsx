@@ -56,6 +56,53 @@ const INITIAL_MOCK_INCIDENTS: IncidentLifecycle[] = [
   }
 ];
 
+const MOCK_PENDING_ALERTS: ProposedAlert[] = [
+  {
+    id: 'pa-001',
+    category: 'CONGESTION',
+    severity: 'WARNING',
+    message: 'Density at North Gate exceeded 70%. Recommended: Open standby gate B.',
+    timestamp: new Date(),
+    status: 'PENDING',
+    playbookSteps: [{ id: 's1', instruction: 'Deploy 4 personnel to Gate B', isCompleted: false }, { id: 's2', instruction: 'Update signage', isCompleted: false }]
+  },
+  {
+    id: 'pa-002',
+    category: 'ROUTE_GUIDE',
+    severity: 'INFO',
+    message: 'Bottleneck forming at Footwear Counter. Divert flow to East Annexe.',
+    timestamp: new Date(Date.now() - 300000),
+    status: 'PENDING',
+    playbookSteps: [{ id: 's1', instruction: 'Enable corridor bypass 4', isCompleted: false }]
+  },
+  {
+    id: 'pa-003',
+    category: 'EMERGENCY',
+    severity: 'CRITICAL',
+    message: 'Medical SOS: Cardiac emergency reported near Queue 4, Pillar 12.',
+    timestamp: new Date(Date.now() - 600000),
+    status: 'PENDING',
+    playbookSteps: [{ id: 's1', instruction: 'Clear central aisle', isCompleted: false }, { id: 's2', instruction: 'Dispatch EMS Unit 2', isCompleted: false }]
+  },
+  {
+    id: 'pa-004',
+    category: 'DARSHAN_PAUSE',
+    severity: 'WARNING',
+    message: 'Sanctum cleaning protocol. Pause Darshan for 15 minutes.',
+    timestamp: new Date(Date.now() - 900000),
+    status: 'PENDING',
+    playbookSteps: [{ id: 's1', instruction: 'Stop Q-lines at Hall 1', isCompleted: false }]
+  },
+  {
+    id: 'pa-005',
+    category: 'CONGESTION',
+    severity: 'WARNING',
+    message: 'Secondary surge detected at VIP entry. Verify credentials strictly.',
+    timestamp: new Date(Date.now() - 1200000),
+    status: 'PENDING'
+  }
+];
+
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -74,7 +121,7 @@ const App: React.FC = () => {
   const [temples, setTemples] = useState<TempleStatus[]>(MOCK_TEMPLES);
   const [selectedTemple, setSelectedTemple] = useState<TempleStatus | null>(null);
 
-  const [proposedAlerts, setProposedAlerts] = useState<ProposedAlert[]>([]);
+  const [proposedAlerts, setProposedAlerts] = useState<ProposedAlert[]>(MOCK_PENDING_ALERTS);
   const [auditLogs, setAuditLogs] = useState<AlertAuditEntry[]>([]);
   const [incidents, setIncidents] = useState<IncidentLifecycle[]>(INITIAL_MOCK_INCIDENTS);
   const [staffNotification, setStaffNotification] = useState<{message: string; severity: string} | null>(null);

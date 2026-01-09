@@ -24,10 +24,10 @@ export const AdminAlertControl: React.FC<AdminAlertControlProps> = ({
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      {/* AI Approval Queue */}
+      {/* AI Approval Queue (Decision Support Engine) */}
       <div className="xl:col-span-2 space-y-4">
-        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-          <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
+        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
             <div className="flex items-center gap-3">
               <div className="bg-orange-600 p-2 rounded-lg shadow-lg shadow-orange-600/20"><ShieldAlert size={18} /></div>
               <div>
@@ -40,7 +40,8 @@ export const AdminAlertControl: React.FC<AdminAlertControlProps> = ({
             </span>
           </div>
 
-          <div className="divide-y">
+          {/* SCROLLABLE BOUNDING CONTAINER */}
+          <div className="divide-y max-h-[600px] overflow-y-auto scrollbar-hide">
             {pending.length === 0 ? (
               <div className="p-12 text-center space-y-3">
                 <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
@@ -145,12 +146,12 @@ export const AdminAlertControl: React.FC<AdminAlertControlProps> = ({
 
       {/* Action Audit Trail */}
       <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden flex flex-col h-full">
-        <div className="p-4 bg-slate-800 border-b border-slate-700 flex items-center gap-3">
+        <div className="p-4 bg-slate-800 border-b border-slate-700 flex items-center gap-3 shrink-0">
           <History size={18} className="text-orange-500" />
           <h4 className="text-[10px] font-black uppercase tracking-widest text-white">Action Audit Trail</h4>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[500px] scrollbar-hide">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[600px] scrollbar-hide">
           {auditLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 opacity-20">
               <Terminal size={40} className="text-white mb-4" />

@@ -1,16 +1,31 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp
+  LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp, Flame, Building2, ClipboardCheck, PlusCircle, ShieldAlert
 } from 'lucide-react';
-import { AppView, CrowdMetric, Language, StaffRole, EnterpriseGatewayConfig } from './types';
+import { AppView, CrowdMetric, Language, StaffRole, EnterpriseGatewayConfig, ProposedAlert, AlertAuditEntry, IncidentLifecycle } from './types';
 import { FootfallPredictionChart, GateLoadChart } from './components/CrowdCharts';
 import { DevoteeAssistant } from './components/DevoteeAssistant';
 import { VideoAnalytics } from './components/VideoAnalytics';
 import { CrowdHeatmap } from './components/CrowdHeatmap';
 import { DevoteeAlertPortal } from './components/DevoteeAlertPortal';
+import { AdminAlertControl } from './components/AdminAlertControl';
+import { EndowmentsDashboard } from './components/EndowmentsDashboard';
+import { ComplianceVault } from './components/ComplianceVault';
+import { TempleOnboarding } from './components/TempleOnboarding';
+import { EmergencyOversight } from './components/EmergencyOversight';
 import { playPAAnnouncement, PA_TEMPLATES, analyzeCrowdSafety, EarlyWarningAnalysis } from './services/geminiService';
 import { dispatchOfficialNotification } from './services/notificationService';
+
+const NavItem = (props: { view: AppView; icon: any; label: string; currentView: AppView; sidebarOpen: boolean; onClick: (view: AppView) => void }) => {
+  const { view, icon: Icon, label, currentView, sidebarOpen, onClick } = props;
+  return (
+    <button onClick={() => onClick(view)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${currentView === view ? 'bg-orange-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+      <Icon size={20} />
+      {sidebarOpen && <span className="font-semibold text-xs tracking-wide">{label}</span>}
+    </button>
+  );
+};
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
@@ -22,10 +37,14 @@ const App: React.FC = () => {
   const [staffMessage, setStaffMessage] = useState("");
   const [paLanguage, setPaLanguage] = useState<Language>(Language.ENGLISH);
   const [customPaText, setCustomPaText] = useState("");
-  const [isListening, setIsListening] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [lastDispatchStatus, setLastDispatchStatus] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const [proposedAlerts, setProposedAlerts] = useState<ProposedAlert[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AlertAuditEntry[]>([]);
+  const [incidents, setIncidents] = useState<IncidentLifecycle[]>([]);
+  const [staffNotification, setStaffNotification] = useState<{message: string; severity: string} | null>(null);
 
   const [weather] = useState({ temp: 31, condition: 'Clear', humidity: 62 });
   const [activeStaff] = useState(128);
@@ -42,7 +61,7 @@ const App: React.FC = () => {
     return { 
       whatsappToken: defaultToken, 
       phoneNumberId: '', 
-      relayUrl: 'http://localhost:8000/send', // Default mock relay
+      relayUrl: 'http://localhost:8000/send', 
       officialSenderName: 'Command Center - Dwaraka Tirumala', 
       gatewayStatus: 'CONNECTED',
       useCorsProxy: true 
@@ -55,18 +74,87 @@ const App: React.FC = () => {
     { zoneId: '6', zoneName: 'Queue Complex', density: 65, status: 'MODERATE', flowRate: 25, trend: 'UP' }
   ]);
 
+  const runAnalysis = async (customMetrics?: CrowdMetric[]) => {
+    setIsAnalyzing(true);
+    const analysis = await analyzeCrowdSafety(customMetrics || metrics);
+    setSafetyAnalysis(analysis);
+    
+    if (analysis.proposedAlert) {
+      setProposedAlerts(prev => {
+        if (prev.some(a => a.message === analysis.proposedAlert?.message && a.status === 'PENDING')) return prev;
+        return [analysis.proposedAlert!, ...prev];
+      });
+
+      const newIncident: IncidentLifecycle = {
+        id: analysis.proposedAlert.id,
+        category: analysis.proposedAlert.category,
+        severity: analysis.proposedAlert.severity,
+        description: analysis.proposedAlert.message,
+        t1_detected: new Date(),
+        adminInvolved: analysis.isFallback ? 'HEURISTIC_ENGINE' : 'AI_AGENT_DIVYA',
+        status: 'ACTIVE',
+        isSOS: analysis.proposedAlert.severity === 'CRITICAL' && Math.random() > 0.7
+      };
+      setIncidents(prev => [newIncident, ...prev]);
+    }
+    setIsAnalyzing(false);
+  };
+
   useEffect(() => {
-    const runAnalysis = async () => {
-      if (!process.env.API_KEY) return;
-      setIsAnalyzing(true);
-      const analysis = await analyzeCrowdSafety(metrics);
-      setSafetyAnalysis(analysis);
-      setIsAnalyzing(false);
-    };
     runAnalysis();
-    const interval = setInterval(runAnalysis, 30000);
+    // Increased interval to 45s to avoid hitting Gemini rate limits
+    const interval = setInterval(() => runAnalysis(), 45000);
     return () => clearInterval(interval);
   }, [metrics]);
+
+  const simulateSurge = () => {
+    const surgeMetrics: CrowdMetric[] = [
+      { zoneId: '1', zoneName: 'South Gate', density: 92, status: 'CRITICAL', flowRate: 5, trend: 'UP' },
+      { zoneId: '6', zoneName: 'Queue Complex', density: 88, status: 'CRITICAL', flowRate: 8, trend: 'UP' }
+    ];
+    runAnalysis(surgeMetrics);
+  };
+
+  const handleAlertAction = (id: string, action: 'APPROVE' | 'REJECT' | 'EDIT', msg?: string) => {
+    const alert = proposedAlerts.find(a => a.id === id);
+    if (!alert) return;
+
+    const finalMsg = msg || alert.message;
+
+    if (action === 'APPROVE') {
+      setStaffNotification({ message: finalMsg, severity: alert.severity });
+      setTimeout(() => setStaffNotification(null), 8000);
+
+      setIncidents(prev => prev.map(inc => inc.id === id ? { 
+        ...inc, 
+        t2_approved: new Date(), 
+        t3_dispatched: new Date(),
+        adminInvolved: 'CHIEF_COMMANDER_ALPHA' 
+      } : inc));
+
+      setTimeout(() => {
+        setIncidents(prev => prev.map(inc => inc.id === id ? { 
+          ...inc, 
+          t4_resolved: new Date(),
+          status: 'RESOLVED'
+        } : inc));
+      }, 30000);
+    }
+
+    setProposedAlerts(prev => prev.map(a => 
+      a.id === id ? { ...a, status: action === 'APPROVE' ? 'DISPATCHED' : 'REJECTED' } : a
+    ));
+
+    const newAudit: AlertAuditEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      alertId: id,
+      action: action === 'APPROVE' ? 'APPROVE' : action === 'REJECT' ? 'REJECT' : 'EDIT',
+      admin: "CHIEF_COMMANDER_ALPHA",
+      timestamp: new Date(),
+      details: `${action}D alert for ${alert.category}: "${finalMsg}"`
+    };
+    setAuditLogs(prev => [newAudit, ...prev]);
+  };
 
   const sendStaffAlert = async (type: 'WHATSAPP' | 'SMS') => {
     if (!staffMessage.trim()) return;
@@ -86,39 +174,58 @@ const App: React.FC = () => {
     setIsSynthesizing(false);
   };
 
-  const isDemoMode = !gatewayConfig.phoneNumberId || gatewayConfig.phoneNumberId === '';
-
-  const NavItem = ({ view, icon: Icon, label }: { view: AppView; icon: any; label: string }) => (
-    <button onClick={() => setCurrentView(view)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${currentView === view ? 'bg-orange-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-      <Icon size={20} />
-      {sidebarOpen && <span className="font-semibold text-xs tracking-wide">{label}</span>}
-    </button>
-  );
-
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden relative font-sans">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-slate-50 overflow-hidden relative font-sans text-[13px]">
+      
+      {staffNotification && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10 fade-in duration-500 w-full max-w-xl px-4">
+          <div className={`backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl p-6 flex items-center gap-5 ${
+            staffNotification.severity === 'CRITICAL' ? 'bg-red-600/90' : 'bg-slate-900/90'
+          }`}>
+            <div className="bg-white/20 p-3 rounded-full text-white animate-bounce"><Megaphone size={24} /></div>
+            <div className="flex-1">
+              <p className="text-[10px] font-black text-white/80 uppercase tracking-widest mb-1">Live Staff Instruction Dispatch</p>
+              <p className="text-sm font-bold text-white leading-snug">"{staffNotification.message}"</p>
+              <div className="flex gap-3 mt-3">
+                 <span className="text-[8px] font-black bg-white/10 text-white/90 px-2 py-1 rounded uppercase border border-white/10">Push: Delivered</span>
+                 <span className="text-[8px] font-black bg-white/10 text-white/90 px-2 py-1 rounded uppercase border border-white/10">WhatsApp: Simulating...</span>
+              </div>
+            </div>
+            <button onClick={() => setStaffNotification(null)} className="text-white/40 hover:text-white"><XCircle size={20}/></button>
+          </div>
+        </div>
+      )}
+
       <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white flex flex-col transition-all duration-300 pt-8 shadow-xl z-50`}>
         <div className="p-4 flex items-center gap-3 border-b border-slate-800 mb-4">
            <div className="bg-orange-600 p-2 rounded-lg shadow-lg"><ShieldCheck size={20} /></div>
            {sidebarOpen && <div><h1 className="font-bold text-sm tracking-tight">DIVYADRISHTI</h1><p className="text-[8px] opacity-40 uppercase tracking-widest">Command Hub</p></div>}
         </div>
         <div className="flex-1 p-4 space-y-1">
-          <NavItem view={AppView.DASHBOARD} icon={LayoutDashboard} label="Control Center" />
-          <NavItem view={AppView.ANALYTICS} icon={BarChart3} label="Analytics" />
-          <NavItem view={AppView.ASSISTANT} icon={MessageSquareText} label="Devotee Aid" />
-          <NavItem view={AppView.SETTINGS} icon={Settings} label="Configuration" />
+          <NavItem view={AppView.DASHBOARD} icon={LayoutDashboard} label="Control Center" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.ENDOWMENTS_OVERVIEW} icon={Building2} label="Endowments Hub" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.EMERGENCY_OVERSIGHT} icon={ShieldAlert} label="Crisis Oversight" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.TEMPLE_ONBOARDING} icon={PlusCircle} label="Onboard Shrine" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.COMPLIANCE_VAULT} icon={ClipboardCheck} label="Compliance Vault" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.ANALYTICS} icon={BarChart3} label="Analytics" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.ASSISTANT} icon={MessageSquareText} label="Devotee Aid" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.SETTINGS} icon={Settings} label="Configuration" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
         </div>
-        <div className="p-4 border-t border-slate-800">
-           <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isDemoMode ? 'bg-blue-500' : 'bg-green-500 animate-pulse'}`} />
-              <span className="text-[9px] font-bold uppercase text-slate-500">{isDemoMode ? 'Hybrid Relay' : 'Edge Computing'}</span>
+        <div className="p-4 border-t border-slate-800 space-y-3">
+           <button 
+             onClick={simulateSurge}
+             className="w-full bg-red-600/10 hover:bg-red-600/20 text-red-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/20 flex items-center justify-center gap-2 transition-all"
+           >
+             <Flame size={12} /> {sidebarOpen ? 'Simulate Surge' : ''}
+           </button>
+           <div className="flex items-center gap-2 px-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              {sidebarOpen && <span className="text-[9px] font-bold uppercase text-slate-500">Grid Online</span>}
            </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* GLOBAL COMMAND HEADER STRIP */}
         <header className="bg-white border-b shadow-sm z-40 flex flex-col shrink-0">
           <div className="h-16 px-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -169,11 +276,26 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           {currentView === AppView.DASHBOARD && (
             <>
-                {/* NEW Safety Advisory Module */}
-                <DevoteeAlertPortal />
+                {safetyAnalysis?.isFallback && (
+                  <div className="bg-indigo-600 text-white p-4 rounded-xl flex items-center justify-between shadow-lg animate-in slide-in-from-top-4 duration-500">
+                     <div className="flex items-center gap-3">
+                        <Zap size={20} className="text-orange-400 animate-pulse" />
+                        <div>
+                           <p className="text-[10px] font-black uppercase tracking-widest">Local Engine Active</p>
+                           <p className="text-xs font-medium opacity-90">AI quota reached. Using deterministic Heuristic Engine for continued safety analysis.</p>
+                        </div>
+                     </div>
+                     <span className="text-[8px] font-black bg-white/10 px-2 py-1 rounded border border-white/20">FAILSAFE_MODE</span>
+                  </div>
+                )}
 
+                <AdminAlertControl 
+                  proposedAlerts={proposedAlerts} 
+                  auditLogs={auditLogs}
+                  onAction={handleAlertAction}
+                />
+                <DevoteeAlertPortal />
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* AI Status Card */}
                   <div className={`col-span-1 p-6 rounded-xl shadow-md flex flex-col justify-between relative overflow-hidden transition-all duration-500 ${
                     safetyAnalysis?.status === 'CRITICAL' ? 'bg-red-600 text-white' : 
                     safetyAnalysis?.status === 'WARNING' ? 'bg-orange-500 text-white' : 
@@ -220,12 +342,11 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* RECTIFIED Official Alert Terminal */}
                   <div className="bg-white rounded-xl border shadow-sm p-6 flex flex-col relative">
                       <div className="flex justify-between items-center mb-6 border-b pb-4">
                           <div className="flex items-center gap-3">
                               <div className="bg-slate-100 p-2 rounded-lg"><MessageCircle size={20} className="text-indigo-600" /></div>
-                              <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-800">Staff Tactical Dispatch</h4>
+                              <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-800">Manual Staff Tactical Dispatch</h4>
                           </div>
                           {lastDispatchStatus && (
                             <div className={`flex items-center gap-1.5 text-[9px] font-bold uppercase px-3 py-1 rounded-full ${lastDispatchStatus.success === false ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
@@ -236,24 +357,6 @@ const App: React.FC = () => {
                       </div>
 
                       <div className="space-y-4 flex-1 flex flex-col">
-                          {lastDispatchStatus?.error && (
-                            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3 animate-in fade-in zoom-in">
-                                <div className="flex gap-3">
-                                    <ExternalLink size={18} className="text-indigo-600 mt-0.5 shrink-0" />
-                                    <div className="space-y-0.5">
-                                        <p className="text-[10px] text-indigo-900 font-bold uppercase">CORS Handover Protocol Required</p>
-                                        <p className="text-[9px] text-indigo-700 leading-relaxed italic">Direct cloud sync restricted. Use Edge-Dispatch below.</p>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => window.open(lastDispatchStatus.directLink, '_blank')}
-                                    className="w-full bg-indigo-600 text-white py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-indigo-700 shadow-md active:scale-[0.98] transition-all"
-                                >
-                                    Execute Tactical Dispatch
-                                </button>
-                            </div>
-                          )}
-
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-1">
                                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personnel Hub</label>
@@ -272,12 +375,10 @@ const App: React.FC = () => {
                                 </select>
                              </div>
                           </div>
-
-                          <textarea value={staffMessage} onChange={(e) => setStaffMessage(e.target.value)} placeholder="Alert message details..." className="flex-1 bg-slate-50 border rounded-xl p-4 text-sm resize-none outline-none placeholder:text-slate-300 font-medium" />
-                          
+                          <textarea value={staffMessage} onChange={(e) => setStaffMessage(e.target.value)} placeholder="Alert message details..." className="flex-1 bg-slate-50 border rounded-xl p-4 text-sm resize-none outline-none placeholder:text-slate-300 font-medium h-24" />
                           <div className="grid grid-cols-2 gap-3">
                               <button onClick={() => sendStaffAlert('WHATSAPP')} className="bg-slate-900 text-white py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 hover:bg-black active:scale-[0.98]">
-                                <MessageCircle size={16} /> {isDemoMode ? 'INIT_RELAY' : 'CLOUD_SYNC'}
+                                <MessageCircle size={16} /> WHATSAPP_SIM
                               </button>
                               <button onClick={() => sendStaffAlert('SMS')} className="bg-white border text-slate-900 py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98]">
                                 <Phone size={16} /> SMS_LEGACY
@@ -286,7 +387,6 @@ const App: React.FC = () => {
                       </div>
                   </div>
 
-                  {/* PA Console Node */}
                   <div className="bg-white rounded-xl border shadow-sm p-6 flex flex-col">
                     <div className="flex items-center gap-3 mb-6 border-b pb-4">
                         <div className="bg-orange-50 p-2 rounded-lg"><Megaphone size={20} className="text-orange-600" /></div>
@@ -310,11 +410,18 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
                 <VideoAnalytics />
                 <CrowdHeatmap />
             </>
           )}
+
+          {currentView === AppView.ENDOWMENTS_OVERVIEW && <EndowmentsDashboard onOnboardClick={() => setCurrentView(AppView.TEMPLE_ONBOARDING)} />}
+          
+          {currentView === AppView.EMERGENCY_OVERSIGHT && <EmergencyOversight incidents={incidents} />}
+
+          {currentView === AppView.TEMPLE_ONBOARDING && <TempleOnboarding />}
+
+          {currentView === AppView.COMPLIANCE_VAULT && <ComplianceVault incidents={incidents} />}
 
           {currentView === AppView.SETTINGS && (
             <div className="max-w-xl mx-auto py-10">
@@ -328,16 +435,8 @@ const App: React.FC = () => {
                     </div>
                     <div className="space-y-6">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Terminal size={12} /> REST API / FastAPI Relay URL</label>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Terminal size={12} /> REST API Relay URL</label>
                             <input value={gatewayConfig.relayUrl} onChange={(e) => setGatewayConfig({...gatewayConfig, relayUrl: e.target.value})} placeholder="http://your-backend.com/api" className="w-full bg-slate-50 border rounded-lg px-4 py-3.5 text-sm outline-none font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Key size={12} /> Cloud Token (Meta Auth)</label>
-                            <input type="password" value={gatewayConfig.whatsappToken} onChange={(e) => setGatewayConfig({...gatewayConfig, whatsappToken: e.target.value})} className="w-full bg-slate-50 border rounded-lg px-4 py-3.5 text-sm font-mono" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Smartphone size={12} /> Phone Number ID</label>
-                            <input value={gatewayConfig.phoneNumberId} onChange={(e) => setGatewayConfig({...gatewayConfig, phoneNumberId: e.target.value})} className="w-full bg-slate-50 border rounded-lg px-4 py-3.5 text-sm font-mono" />
                         </div>
                         <button onClick={() => {
                           localStorage.setItem('svsd_gateway_config', JSON.stringify(gatewayConfig));
@@ -349,7 +448,6 @@ const App: React.FC = () => {
                 </div>
             </div>
           )}
-          
           {currentView === AppView.ANALYTICS && <div className="space-y-6"><FootfallPredictionChart /><GateLoadChart /></div>}
           {currentView === AppView.ASSISTANT && <div className="max-w-5xl mx-auto h-[750px] shadow-2xl rounded-2xl overflow-hidden"><DevoteeAssistant /></div>}
         </main>

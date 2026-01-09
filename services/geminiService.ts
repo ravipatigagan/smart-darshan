@@ -1,6 +1,41 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Language, CrowdMetric } from "../types";
+import { Language, CrowdMetric, ProposedAlert, AlertSeverity, AdvisoryCategory, TacticalStep } from "../types";
+
+const PLAYBOOK_TEMPLATES: Record<AdvisoryCategory, string[]> = {
+  CONGESTION: [
+    "Open alternate gate (North Gopuram)",
+    "Pause new entry for 5 minutes",
+    "Dispatch 5 additional volunteers to Zone Alpha",
+    "Make PA announcement for slow movement"
+  ],
+  EMERGENCY: [
+    "Clear primary medical exit route",
+    "Notify District Police QR Team",
+    "Broadcast emergency evacuation loop",
+    "Activate backup lighting in all tunnels"
+  ],
+  DARSHAN_PAUSE: [
+    "Seal sanctum entrance cordons",
+    "Activate cooling fans in Queue Hall 4",
+    "Deploy 'Water Distribution' team to stalled queues",
+    "Update wait-time on digital signboards"
+  ],
+  ROUTE_GUIDE: [
+    "Deploy signage team to South Junction",
+    "Update mobile app waypoints",
+    "Divert exit-bound pilgrims to Gate 4",
+    "Monitor secondary flow bottleneck"
+  ]
+};
+
+const getPlaybookFor = (category: AdvisoryCategory): TacticalStep[] => {
+  return (PLAYBOOK_TEMPLATES[category] || PLAYBOOK_TEMPLATES.CONGESTION).map((instr, idx) => ({
+    id: `step-${idx}`,
+    instruction: instr,
+    isCompleted: false
+  }));
+};
 
 export interface GroundingLink {
   uri: string;
@@ -19,11 +54,10 @@ export interface EarlyWarningAnalysis {
   reRoutingStrategy: string;
   paMessage: string;
   confidence: number;
+  proposedAlert?: ProposedAlert;
+  isFallback?: boolean;
 }
 
-// --- AUDIO PROCESSING HELPERS ---
-
-// Manual implementation of base64 decoding following GenAI SDK guidelines
 function decodeBase64(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -34,7 +68,6 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-// Helper to decode raw PCM audio data into an AudioBuffer
 async function decodeRawPcmToBuffer(
   data: Uint8Array,
   ctx: AudioContext,
@@ -56,9 +89,6 @@ async function decodeRawPcmToBuffer(
 
 const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
-/**
- * Synthesizes text using Gemini 2.5 Flash TTS.
- */
 const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<AudioBuffer | null> => {
   if (!process.env.API_KEY) return null;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -77,7 +107,6 @@ const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<
       },
     });
 
-    // Access .text property for string output or inlineData for audio
     const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Data) return null;
 
@@ -93,9 +122,6 @@ const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<
   }
 };
 
-/**
- * Translates text using Gemini 3 Flash.
- */
 const translateWithGemini = async (text: string, targetLang: string): Promise<string> => {
   if (!process.env.API_KEY) return text;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -106,37 +132,85 @@ const translateWithGemini = async (text: string, targetLang: string): Promise<st
     });
     return response.text || text;
   } catch (e) {
-    console.error("Translation Error:", e);
     return text;
   }
 };
 
-// --- CORE AI SERVICES ---
+const heuristicAnalysis = (metrics: CrowdMetric[]): EarlyWarningAnalysis => {
+  const criticalMetric = metrics.find(m => m.density > 80);
+  const moderateMetric = metrics.find(m => m.density > 50);
 
-/**
- * Analyzes live crowd metrics for early warning detection.
- * Removed googleSearch as it requires grounding link extraction and display, which is not feasible in this diagnostic view.
- */
-export const analyzeCrowdSafety = async (metrics: CrowdMetric[]): Promise<EarlyWarningAnalysis> => {
-  if (!process.env.API_KEY) {
+  if (criticalMetric) {
     return {
-      status: 'SAFE',
-      anomalies: ['AI Offline'],
-      reRoutingStrategy: 'Standard operating procedure.',
-      paMessage: 'Please follow queue discipline.',
-      confidence: 0.5
+      status: 'CRITICAL',
+      anomalies: [`High Density Anomaly in ${criticalMetric.zoneName}`],
+      reRoutingStrategy: `Immediately divert pilgrims from ${criticalMetric.zoneName} to alternate gates.`,
+      paMessage: `Attention. High density at ${criticalMetric.zoneName}. Please follow staff instructions.`,
+      confidence: 0.85,
+      isFallback: true,
+      proposedAlert: {
+        id: 'fallback-' + Date.now(),
+        category: 'EMERGENCY',
+        severity: 'CRITICAL',
+        message: `EMERGENCY: Density breach in ${criticalMetric.zoneName}. Immediate mobilization required.`,
+        status: 'PENDING',
+        timestamp: new Date(),
+        playbookSteps: getPlaybookFor('EMERGENCY')
+      }
     };
   }
+
+  if (moderateMetric) {
+    return {
+      status: 'WARNING',
+      anomalies: [`Load increase in ${moderateMetric.zoneName}`],
+      reRoutingStrategy: `Monitor ${moderateMetric.zoneName} and slow down entry flow.`,
+      paMessage: `Density rising in ${moderateMetric.zoneName}. Move slowly.`,
+      confidence: 0.75,
+      isFallback: true,
+      proposedAlert: {
+        id: 'fallback-' + Date.now(),
+        category: 'CONGESTION',
+        severity: 'WARNING',
+        message: `Warning: Congestion detected in ${moderateMetric.zoneName}.`,
+        status: 'PENDING',
+        timestamp: new Date(),
+        playbookSteps: getPlaybookFor('CONGESTION')
+      }
+    };
+  }
+
+  return {
+    status: 'SAFE',
+    anomalies: [],
+    reRoutingStrategy: 'All zones operating within nominal parameters.',
+    paMessage: 'Have a pleasant darshan.',
+    confidence: 1.0,
+    isFallback: true
+  };
+};
+
+export const analyzeCrowdSafety = async (metrics: CrowdMetric[]): Promise<EarlyWarningAnalysis> => {
+  if (!process.env.API_KEY) return heuristicAnalysis(metrics);
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const metricsJson = JSON.stringify(metrics);
 
   const prompt = `
     Analyze live crowd metrics for Dwarakatirumala Temple: ${metricsJson}
-    Predict potential anomalies: Bottlenecks, Stampede risks, or Gate overflows.
-    Note: North Gate is ENTRY ONLY. South is Main Exit.
-    
-    Return status (SAFE/WARNING/CRITICAL), anomalies list, re-routing strategy, and PA announcement script.
+    Predict anomalies (Stampede/Bottleneck).
+    Return a JSON response with:
+    {
+      "status": "SAFE" | "WARNING" | "CRITICAL",
+      "anomalies": string[],
+      "reRoutingStrategy": string,
+      "paMessage": string,
+      "proposedAlert": {
+        "category": "CONGESTION" | "EMERGENCY" | "ROUTE_GUIDE",
+        "severity": "INFO" | "WARNING" | "CRITICAL",
+        "message": "Instruction for staff/volunteers"
+      }
+    }
   `;
 
   try {
@@ -145,32 +219,37 @@ export const analyzeCrowdSafety = async (metrics: CrowdMetric[]): Promise<EarlyW
       contents: prompt,
       config: {
         temperature: 0.1,
+        responseMimeType: "application/json"
       },
     });
 
-    const text = response.text || "";
-    const status: any = text.includes('CRITICAL') ? 'CRITICAL' : text.includes('WARNING') ? 'WARNING' : 'SAFE';
+    const res = JSON.parse(response.text || "{}");
     
     return {
-      status,
-      anomalies: text.split('\n').filter(l => l.includes('-') || l.includes('•')).slice(0, 3),
-      reRoutingStrategy: text.split('Strategy:')[1]?.split('Announcement:')[0]?.trim() || "Maintain current gate status.",
-      paMessage: text.split('Announcement:')[1]?.trim() || "Pilgrims are advised to follow the queue complex markers.",
-      confidence: 0.95
+      status: res.status || 'SAFE',
+      anomalies: res.anomalies || [],
+      reRoutingStrategy: res.reRoutingStrategy || "Maintain discipline.",
+      paMessage: res.paMessage || "Follow queue lines.",
+      confidence: 0.95,
+      proposedAlert: res.proposedAlert ? {
+        id: Math.random().toString(36).substr(2, 9),
+        status: 'PENDING',
+        timestamp: new Date(),
+        ...res.proposedAlert,
+        playbookSteps: getPlaybookFor(res.proposedAlert.category)
+      } : undefined
     };
-  } catch (error) {
+  } catch (error: any) {
+    if (error.status === 429 || (error.message && error.message.includes('429'))) {
+      console.warn("Gemini Quota Exceeded. Falling back to Heuristic Engine.");
+      return heuristicAnalysis(metrics);
+    }
     console.error("Safety Analysis Error:", error);
-    return { status: 'SAFE', anomalies: [], reRoutingStrategy: 'Normal', paMessage: 'Systems monitoring.', confidence: 0 };
+    return heuristicAnalysis(metrics);
   }
 };
 
-/**
- * Advanced PA Announcement System.
- * Automatically translates to Telugu and plays Telugu FIRST, then English.
- */
 export const playPAAnnouncement = async (text: string, sourceLang: Language = Language.ENGLISH) => {
-  console.log(`[PA SYSTEM] Sequential Alert Triggered: Telugu then English.`);
-  
   let teluguText = "";
   let englishText = "";
 
@@ -195,17 +274,13 @@ export const playPAAnnouncement = async (text: string, sourceLang: Language = La
   if (teluguBuffer) {
     play(teluguBuffer, 0);
     if (englishBuffer) {
-      play(englishBuffer, teluguBuffer.duration + 0.5); // 0.5s pause
+      play(englishBuffer, teluguBuffer.duration + 0.5);
     }
   } else if (englishBuffer) {
     play(englishBuffer, 0);
   }
 };
 
-/**
- * Handles devotee chat queries using Gemini models.
- * Uses gemini-2.5-flash for maps grounding tasks and gemini-3-pro-preview for general reasoning.
- */
 export const getChatResponse = async (
   message: string, 
   language: Language, 
@@ -217,12 +292,10 @@ export const getChatResponse = async (
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const needsMaps = message.toLowerCase().includes('location') || message.toLowerCase().includes('where');
-
   const datasetPrompt = `You are DivyaSahayak for Dwarakatirumala Temple. Be concise and respectful.`;
 
   try {
     if (needsMaps) {
-      // Maps grounding is specifically supported in Gemini 2.5 series
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `${datasetPrompt}\nQuestion: ${message}`,
@@ -231,11 +304,9 @@ export const getChatResponse = async (
           toolConfig: { retrievalConfig: { latLng: { latitude: 16.9499, longitude: 81.2991 } } }
         },
       });
-      // Extracting mandatory URLs from groundingChunks for Maps grounding
       const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.filter((c: any) => c.maps).map((c: any) => ({ uri: c.maps.uri, title: c.maps.title })) || [];
-      return { text: response.text || "Dataset match.", groundingLinks: links, isGroundingActive: true };
+      return { text: response.text || "Map details found.", groundingLinks: links, isGroundingActive: true };
     } else {
-      // General complex reasoning tasks use gemini-3-pro-preview
       const response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
         contents: `${datasetPrompt}\nQuestion: ${message}`,
@@ -243,7 +314,7 @@ export const getChatResponse = async (
       return { text: response.text || "Namaskaram.", isGroundingActive: false };
     }
   } catch (error) {
-    return { text: "Systems momentarily busy. Please try again." };
+    return { text: "Systems momentarily busy." };
   }
 };
 
@@ -256,6 +327,6 @@ export const PA_TEMPLATES: Record<string, Record<Language, string>> = {
   GATE_RULE: {
     [Language.ENGLISH]: "North Gopuram is for Entry Only. Please exit via South Raja Gopuram.",
     [Language.TELUGU]: "ఉత్తర గోపురం ప్రవేశానికి మాత్రమే. దక్షిణ రాజ గోపురం నుండి నిష్క్రమించండి.",
-    [Language.HINDI]: "उत्तर गोपुरम केवल प्रवेश के लिए है। दक्षिण राजा గోపురం से बाहर निकलें।"
+    [Language.HINDI]: "उत्तर गोपुरम केवल प्रवेश के लिए है। दक्षिण राजा గోपुरम से बाहर निकलें।"
   }
 };

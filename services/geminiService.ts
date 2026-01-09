@@ -23,6 +23,7 @@ export interface EarlyWarningAnalysis {
 
 // --- AUDIO PROCESSING HELPERS ---
 
+// Manual implementation of base64 decoding following GenAI SDK guidelines
 function decodeBase64(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -33,6 +34,7 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
+// Helper to decode raw PCM audio data into an AudioBuffer
 async function decodeRawPcmToBuffer(
   data: Uint8Array,
   ctx: AudioContext,
@@ -75,6 +77,7 @@ const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<
       },
     });
 
+    // Access .text property for string output or inlineData for audio
     const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Data) return null;
 
@@ -110,6 +113,10 @@ const translateWithGemini = async (text: string, targetLang: string): Promise<st
 
 // --- CORE AI SERVICES ---
 
+/**
+ * Analyzes live crowd metrics for early warning detection.
+ * Removed googleSearch as it requires grounding link extraction and display, which is not feasible in this diagnostic view.
+ */
 export const analyzeCrowdSafety = async (metrics: CrowdMetric[]): Promise<EarlyWarningAnalysis> => {
   if (!process.env.API_KEY) {
     return {
@@ -137,7 +144,6 @@ export const analyzeCrowdSafety = async (metrics: CrowdMetric[]): Promise<EarlyW
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        tools: [{ googleSearch: {} }],
         temperature: 0.1,
       },
     });
@@ -196,6 +202,10 @@ export const playPAAnnouncement = async (text: string, sourceLang: Language = La
   }
 };
 
+/**
+ * Handles devotee chat queries using Gemini models.
+ * Uses gemini-2.5-flash for maps grounding tasks and gemini-3-pro-preview for general reasoning.
+ */
 export const getChatResponse = async (
   message: string, 
   language: Language, 
@@ -212,6 +222,7 @@ export const getChatResponse = async (
 
   try {
     if (needsMaps) {
+      // Maps grounding is specifically supported in Gemini 2.5 series
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `${datasetPrompt}\nQuestion: ${message}`,
@@ -220,9 +231,11 @@ export const getChatResponse = async (
           toolConfig: { retrievalConfig: { latLng: { latitude: 16.9499, longitude: 81.2991 } } }
         },
       });
+      // Extracting mandatory URLs from groundingChunks for Maps grounding
       const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.filter((c: any) => c.maps).map((c: any) => ({ uri: c.maps.uri, title: c.maps.title })) || [];
       return { text: response.text || "Dataset match.", groundingLinks: links, isGroundingActive: true };
     } else {
+      // General complex reasoning tasks use gemini-3-pro-preview
       const response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
         contents: `${datasetPrompt}\nQuestion: ${message}`,

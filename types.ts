@@ -14,21 +14,37 @@ export enum Language {
 
 export type StaffRole = 'SECURITY' | 'VOLUNTEER' | 'MEDICAL' | 'ADMIN' | 'ALL';
 
+export type AdvisoryCategory = 'CONGESTION' | 'DARSHAN_PAUSE' | 'ROUTE_GUIDE' | 'EMERGENCY';
+
+export interface AdvisoryLog {
+  id: string;
+  templateId: AdvisoryCategory;
+  fields: Record<string, string>;
+  finalMessage: string;
+  channels: {
+    push: 'EXECUTED';
+    sms: 'SIMULATED';
+    voice: 'SIMULATED';
+  };
+  timestamp: Date;
+}
+
 export interface EnterpriseGatewayConfig {
   whatsappToken: string;
   phoneNumberId: string;
+  relayUrl: string; 
   officialSenderName: string;
   gatewayStatus: 'CONNECTED' | 'DISCONNECTED' | 'STANDBY';
   useCorsProxy: boolean;
 }
 
-export interface StaffAlert {
-  id: string;
-  role: StaffRole;
-  message: string;
-  sender: string;
-  timestamp: Date;
-  isRead: boolean;
+export interface CrowdMetric {
+  zoneId: string;
+  zoneName: string;
+  density: number; 
+  status: 'SAFE' | 'MODERATE' | 'CRITICAL';
+  flowRate: number; 
+  trend: 'UP' | 'DOWN' | 'STABLE';
 }
 
 export interface ChatMessage {
@@ -37,21 +53,4 @@ export interface ChatMessage {
   text: string;
   timestamp: Date;
   language?: Language;
-}
-
-export interface CrowdMetric {
-  zoneId: string;
-  zoneName: string;
-  density: number; // 0-100
-  status: 'SAFE' | 'MODERATE' | 'CRITICAL';
-  flowRate: number; // people per minute
-  trend: 'UP' | 'DOWN' | 'STABLE';
-}
-
-export interface Alert {
-  id: string;
-  type: 'info' | 'warning' | 'critical';
-  message: string;
-  timestamp: Date;
-  zone?: string;
 }

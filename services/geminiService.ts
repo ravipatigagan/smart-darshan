@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Language, CrowdMetric, ProposedAlert, AlertSeverity, AdvisoryCategory, TacticalStep } from "../types";
+import { Language, CrowdMetric, ProposedAlert, AlertSeverity, AdvisoryCategory, TacticalStep, ChatMessage } from "../types";
 
 const PLAYBOOK_TEMPLATES: Record<AdvisoryCategory, string[]> = {
   CONGESTION: [
@@ -89,9 +89,12 @@ async function decodeRawPcmToBuffer(
 
 const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
-export const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<AudioBuffer | null> => {
+export const synthesizeTts = async (text: string, lang: Language = Language.ENGLISH, retry: boolean = true): Promise<AudioBuffer | null> => {
   if (!process.env.API_KEY) return null;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  // Strict voice mapping for native consistency
+  const voiceName = lang === Language.TELUGU ? 'Kore' : lang === Language.HINDI ? 'Puck' : 'Zephyr';
   
   try {
     const response = await ai.models.generateContent({
@@ -108,7 +111,7 @@ export const synthesizeTts = async (text: string, voiceName: string = 'Kore'): P
     });
 
     const base64Data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Data) return null;
+    if (!base64Data) throw new Error("No audio data returned");
 
     return await decodeRawPcmToBuffer(
       decodeBase64(base64Data),
@@ -118,6 +121,10 @@ export const synthesizeTts = async (text: string, voiceName: string = 'Kore'): P
     );
   } catch (e) {
     console.error("TTS Synthesis Error:", e);
+    if (retry) {
+      console.warn("Retrying TTS synthesis...");
+      return synthesizeTts(text, lang, false);
+    }
     return null;
   }
 };
@@ -128,7 +135,7 @@ export const translateWithGemini = async (text: string, targetLang: string): Pro
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Translate the following temple assistant text to ${targetLang}. Return ONLY the translated text, preserving any factual details like times or gate names: "${text}"`,
+      contents: `Translate the following temple assistant text to ${targetLang}. Return ONLY the translation: "${text}"`,
     });
     return response.text || text;
   } catch (e) {
@@ -261,8 +268,8 @@ export const playPAAnnouncement = async (text: string, sourceLang: Language = La
     teluguText = await translateWithGemini(text, "Telugu");
   }
 
-  const teluguBuffer = await synthesizeTts(teluguText);
-  const englishBuffer = await synthesizeTts(englishText);
+  const teluguBuffer = await synthesizeTts(teluguText, Language.TELUGU);
+  const englishBuffer = await synthesizeTts(englishText, Language.ENGLISH);
 
   const play = (buffer: AudioBuffer, delay: number = 0) => {
     const source = audioCtx.createBufferSource();
@@ -284,7 +291,8 @@ export const playPAAnnouncement = async (text: string, sourceLang: Language = La
 export const getChatResponse = async (
   message: string, 
   language: Language, 
-  isOffline: boolean
+  isOffline: boolean,
+  history: ChatMessage[] = []
 ): Promise<ChatAIResponse> => {
   if (isOffline || !process.env.API_KEY) {
     return { text: "Offline mode active. Dwarakatirumala timings: 4 AM - 10 PM." };
@@ -293,20 +301,33 @@ export const getChatResponse = async (
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const lowerMsg = message.toLowerCase();
   
-  // Grounding Detection Logic
   const needsMaps = lowerMsg.includes('location') || lowerMsg.includes('where') || lowerMsg.includes('near') || lowerMsg.includes('route') || lowerMsg.includes('gate');
   const needsSearch = lowerMsg.includes('today') || lowerMsg.includes('event') || lowerMsg.includes('latest') || lowerMsg.includes('festival') || lowerMsg.includes('timing');
 
+  // STRONGER LANGUAGE ENFORCEMENT
   const systemInstruction = `You are DivyaSahayak, the unified AI assistant for Dwarakatirumala Temple. 
-  Respond in ${language}. Be concise, helpful, and polite. 
+  CRITICAL: You MUST respond strictly in ${language}. 
+  Do NOT use any other language in your final response text.
+  If the user asks a question, your internal reasoning can be multi-lingual, but the FINAL output to the user MUST be entirely in ${language}.
+  You MUST follow this even for follow-up questions. Maintain context.
+  Be concise, helpful, and polite. 
   Use grounding tools if the user asks for locations or news.`;
+
+  const contents = [
+    ...history.map(msg => ({
+      role: msg.role,
+      parts: [{ text: msg.text }]
+    })),
+    { role: 'user', parts: [{ text: message }] }
+  ];
 
   try {
     if (needsMaps) {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: `${systemInstruction}\nUser Question: ${message}`,
+        contents,
         config: {
+          systemInstruction,
           tools: [{ googleMaps: {} }],
           toolConfig: { 
             retrievalConfig: { 
@@ -323,8 +344,9 @@ export const getChatResponse = async (
     } else if (needsSearch) {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `${systemInstruction}\nUser Question: ${message}`,
+        contents,
         config: {
+          systemInstruction,
           tools: [{ googleSearch: {} }]
         },
       });
@@ -335,14 +357,17 @@ export const getChatResponse = async (
     
     } else {
       const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: `${systemInstruction}\nUser Question: ${message}`,
+        model: "gemini-3-flash-preview", // Use flash for reduced latency
+        contents,
+        config: {
+          systemInstruction
+        }
       });
-      return { text: response.text || "Namaskaram. How can I help you?", isGroundingActive: false };
+      return { text: response.text || "Namaskaram.", isGroundingActive: false };
     }
   } catch (error) {
     console.error("AI Assistant Error:", error);
-    return { text: "I'm experiencing a high load. Please try again in a moment." };
+    return { text: "Service temporary unavailable." };
   }
 };
 

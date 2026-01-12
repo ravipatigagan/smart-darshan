@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp, Flame, Building2, ClipboardCheck, PlusCircle, ShieldAlert, Navigation, Trophy, Split, Sparkles, ChevronRight, Calendar, ArrowRight
+  LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp, Flame, Building2, ClipboardCheck, PlusCircle, ShieldAlert, Navigation, Trophy, Split, Sparkles, ChevronRight, Calendar, ArrowRight, Eye, Satellite
 } from 'lucide-react';
 import { AppView, CrowdMetric, Language, StaffRole, EnterpriseGatewayConfig, ProposedAlert, AlertAuditEntry, IncidentLifecycle, TempleStatus } from './types';
 import { FootfallPredictionChart, GateLoadChart } from './components/CrowdCharts';
@@ -151,8 +151,16 @@ const MOCK_PENDING_ALERTS: ProposedAlert[] = [
   }
 ];
 
+enum DashboardTab {
+  LIVE_OPS = 'LIVE_OPS',
+  DECISION_SUPPORT = 'DECISION_SUPPORT',
+  ALERTS_COMMS = 'ALERTS_COMMS',
+  EMERGENCY_DISPATCH = 'EMERGENCY_DISPATCH'
+}
+
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab>(DashboardTab.LIVE_OPS);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [safetyAnalysis, setSafetyAnalysis] = useState<EarlyWarningAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -160,6 +168,8 @@ const App: React.FC = () => {
   const [staffRole, setStaffRole] = useState<StaffRole>('SECURITY');
   const [staffMessage, setStaffMessage] = useState("");
   const [paLanguage, setPaLanguage] = useState<Language>(Language.ENGLISH);
+  // Persist conversation language globally
+  const [activeLanguage, setActiveLanguage] = useState<Language>(Language.ENGLISH);
   const [customPaText, setCustomPaText] = useState("");
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [lastDispatchStatus, setLastDispatchStatus] = useState<any>(null);
@@ -352,130 +362,179 @@ const App: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           {currentView === AppView.DASHBOARD && (
-            <>
-                {/* --- AI EARLY PREDICTION HUB (RESTORED & RECTIFIED) --- */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-700">
-                  <div className={`col-span-1 lg:col-span-1 p-6 rounded-3xl shadow-2xl flex flex-col justify-between relative overflow-hidden border border-white/10 transition-all duration-500 ${
-                    safetyAnalysis?.status === 'CRITICAL' ? 'bg-red-600 text-white' : 
-                    safetyAnalysis?.status === 'WARNING' ? 'bg-orange-500 text-white' : 
-                    'bg-slate-900 text-white'
-                  }`}>
-                    <div className="absolute top-0 right-0 p-8 opacity-10"><Cpu size={120} /></div>
-                    <div className="z-10">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">AI Early Warning Engine</p>
-                        {isAnalyzing && <Loader2 className="animate-spin opacity-50" size={14} />}
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <h3 className="text-5xl font-black mb-1">{safetyAnalysis?.status || 'INIT...'}</h3>
-                        {safetyAnalysis?.status !== 'SAFE' && <AlertTriangle size={32} className="animate-pulse text-yellow-300" />}
-                      </div>
-                      <p className="text-[10px] opacity-70 uppercase tracking-tight font-bold">Neural Sync: Nominal | Confidence: {((safetyAnalysis?.confidence || 0.95) * 100).toFixed(1)}%</p>
-                    </div>
-                    
-                    <div className="mt-8 z-10 p-5 bg-white/10 rounded-2xl backdrop-blur-xl border border-white/10 shadow-inner">
-                       <div className="flex items-center gap-2 mb-2">
-                          <Split size={14} className="text-orange-400" />
-                          <p className="text-[9px] font-black uppercase opacity-60 tracking-widest">Strategic Rerouting Message</p>
-                       </div>
-                       <p className="text-xs leading-relaxed font-bold italic">"{safetyAnalysis?.reRoutingStrategy || 'Awaiting telemetry stream sync...'}"</p>
-                    </div>
-                  </div>
+            <div className="space-y-6">
+              {/* DASHBOARD TABS NAVIGATION */}
+              <div className="bg-white border p-1 rounded-2xl flex gap-1 shadow-sm sticky top-0 z-30 mb-2">
+                <button 
+                  onClick={() => setDashboardTab(DashboardTab.LIVE_OPS)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === DashboardTab.LIVE_OPS ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                >
+                  <Satellite size={16} /> Live Operations
+                </button>
+                <button 
+                  onClick={() => setDashboardTab(DashboardTab.DECISION_SUPPORT)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === DashboardTab.DECISION_SUPPORT ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                >
+                  <Cpu size={16} /> Decision Support
+                </button>
+                <button 
+                  onClick={() => setDashboardTab(DashboardTab.ALERTS_COMMS)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === DashboardTab.ALERTS_COMMS ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                >
+                  <Megaphone size={16} /> Alerts & Comms
+                </button>
+                <button 
+                  onClick={() => setDashboardTab(DashboardTab.EMERGENCY_DISPATCH)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === DashboardTab.EMERGENCY_DISPATCH ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                >
+                  <Flame size={16} /> Emergency Dispatch
+                </button>
+              </div>
 
-                  {/* --- DYNAMIC PREDICTIVE INTEL FEED (REPLACED GRAPH) --- */}
-                  <div className="col-span-1 lg:col-span-2 bg-white rounded-3xl border shadow-xl p-6 flex flex-col overflow-hidden relative min-h-[300px]">
-                    <PredictiveIntelFeed />
-                  </div>
-                </div>
+              {/* TAB CONTENT RENDERING */}
+              <div className="animate-in fade-in duration-500">
+                {dashboardTab === DashboardTab.LIVE_OPS && (
+                  <div className="space-y-6">
+                    {/* CCTV feeds prioritized at the top as requested */}
+                    <VideoAnalytics />
 
-                {safetyAnalysis?.isFallback && (
-                  <div className="bg-indigo-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-xl animate-in slide-in-from-top-4 duration-500">
-                     <div className="flex items-center gap-3">
-                        <Zap size={20} className="text-orange-400 animate-pulse" />
-                        <div>
-                           <p className="text-[10px] font-black uppercase tracking-widest">Local Engine Active</p>
-                           <p className="text-xs font-medium opacity-90">AI quota reached. Using deterministic Heuristic Engine for continued safety analysis.</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className={`col-span-1 p-6 rounded-3xl shadow-2xl flex flex-col justify-between relative overflow-hidden border border-white/10 transition-all duration-500 ${
+                        safetyAnalysis?.status === 'CRITICAL' ? 'bg-red-600 text-white' : 
+                        safetyAnalysis?.status === 'WARNING' ? 'bg-orange-500 text-white' : 
+                        'bg-slate-900 text-white'
+                      }`}>
+                        <div className="absolute top-0 right-0 p-8 opacity-10"><Cpu size={120} /></div>
+                        <div className="z-10">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">AI Early Warning Engine</p>
+                            {isAnalyzing && <Loader2 className="animate-spin opacity-50" size={14} />}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <h3 className="text-5xl font-black mb-1">{safetyAnalysis?.status || 'INIT...'}</h3>
+                            {safetyAnalysis?.status !== 'SAFE' && <AlertTriangle size={32} className="animate-pulse text-yellow-300" />}
+                          </div>
+                          <p className="text-[10px] opacity-70 uppercase tracking-tight font-bold">Neural Sync: Nominal | Confidence: {((safetyAnalysis?.confidence || 0.95) * 100).toFixed(1)}%</p>
                         </div>
-                     </div>
-                     <span className="text-[8px] font-black bg-white/10 px-3 py-1.5 rounded-full border border-white/20">FAILSAFE_MODE_V3</span>
+                        
+                        <div className="mt-8 z-10 p-5 bg-white/10 rounded-2xl backdrop-blur-xl border border-white/10 shadow-inner">
+                           <div className="flex items-center gap-2 mb-2">
+                              <Split size={14} className="text-orange-400" />
+                              <p className="text-[9px] font-black uppercase opacity-60 tracking-widest">Strategic Rerouting Message</p>
+                           </div>
+                           <p className="text-xs leading-relaxed font-bold italic">"{safetyAnalysis?.reRoutingStrategy || 'Awaiting telemetry stream sync...'}"</p>
+                        </div>
+                      </div>
+
+                      <div className="lg:col-span-2 space-y-6">
+                        {safetyAnalysis?.isFallback && (
+                          <div className="bg-indigo-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-xl animate-in slide-in-from-top-4 duration-500">
+                             <div className="flex items-center gap-3">
+                                <Zap size={20} className="text-orange-400 animate-pulse" />
+                                <div>
+                                   <p className="text-[10px] font-black uppercase tracking-widest">Local Engine Active</p>
+                                   <p className="text-xs font-medium opacity-90">AI quota reached. Using deterministic Heuristic Engine for continued safety analysis.</p>
+                                </div>
+                             </div>
+                             <span className="text-[8px] font-black bg-white/10 px-3 py-1.5 rounded-full border border-white/20">FAILSAFE_MODE_V3</span>
+                          </div>
+                        )}
+                        <div className="bg-white rounded-[2.5rem] border shadow-2xl overflow-hidden">
+                           <div className="p-4 bg-slate-50 border-b flex items-center gap-3">
+                              <Navigation size={18} className="text-orange-600" />
+                              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Tactical Diversion Map</h4>
+                              <span className="ml-auto text-[10px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Traffic Sync</span>
+                           </div>
+                           <CrowdHeatmap />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <div className="bg-white rounded-[2.5rem] border shadow-2xl overflow-hidden mb-6">
-                   <div className="p-4 bg-slate-50 border-b flex items-center gap-3">
-                      <Navigation size={18} className="text-orange-600" />
-                      <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Tactical Diversion Map</h4>
-                      <span className="ml-auto text-[10px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Traffic Sync: Active</span>
-                   </div>
-                   <CrowdHeatmap />
-                </div>
-
-                <AdminAlertControl proposedAlerts={proposedAlerts} auditLogs={auditLogs} onAction={handleAlertAction} />
-                <DevoteeAlertPortal />
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col relative overflow-hidden">
-                      <div className="flex justify-between items-center mb-8 border-b pb-4">
-                          <div className="flex items-center gap-3">
-                              <div className="bg-slate-100 p-2.5 rounded-2xl"><MessageCircle size={20} className="text-indigo-600" /></div>
-                              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Tactical Staff Broadcast</h4>
-                          </div>
+                {dashboardTab === DashboardTab.DECISION_SUPPORT && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="col-span-1 bg-white rounded-3xl border shadow-xl p-6 flex flex-col overflow-hidden relative min-h-[300px]">
+                        <PredictiveIntelFeed />
                       </div>
-                      <div className="space-y-6 flex-1 flex flex-col">
-                          <div className="grid grid-cols-2 gap-6">
-                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admin Target Hub</label>
-                                <div className="flex items-center gap-3 bg-slate-50 border rounded-2xl px-5 py-4">
-                                    <Smartphone size={16} className="text-slate-400" />
-                                    <input value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder="91xxxxxxxxxx" className="bg-transparent text-sm font-bold text-slate-800 outline-none w-full" />
-                                </div>
-                             </div>
-                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Intervention Role</label>
-                                <select value={staffRole} onChange={(e) => setStaffRole(e.target.value as StaffRole)} className="w-full bg-slate-50 border rounded-2xl px-5 py-4 text-xs font-black uppercase text-slate-700 outline-none">
-                                   <option value="SECURITY">Security / Police</option>
-                                   <option value="VOLUNTEER">Pilgrim Support</option>
-                                   <option value="MEDICAL">EMS Units</option>
-                                </select>
-                             </div>
+                      <div className="lg:col-span-2">
+                         <AdminAlertControl proposedAlerts={proposedAlerts} auditLogs={auditLogs} onAction={handleAlertAction} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {dashboardTab === DashboardTab.ALERTS_COMMS && (
+                  <div className="space-y-6">
+                    <DevoteeAlertPortal />
+                    <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col max-w-4xl mx-auto">
+                      <div className="flex items-center gap-3 mb-8 border-b pb-4">
+                          <div className="bg-orange-50 p-2.5 rounded-2xl"><Megaphone size={20} className="text-orange-600" /></div>
+                          <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Public Address Dispatch</h4>
+                      </div>
+                      <div className="space-y-6">
+                          <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                              {[Language.ENGLISH, Language.TELUGU, Language.HINDI].map(lang => (
+                                  <button key={lang} onClick={() => setPaLanguage(lang)} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest ${paLanguage === lang ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>{lang.slice(0, 3)}</button>
+                              ))}
                           </div>
-                          <textarea value={staffMessage} onChange={(e) => setStaffMessage(e.target.value)} placeholder="Enter operational directive..." className="flex-1 bg-slate-50 border rounded-3xl p-6 text-sm resize-none outline-none font-medium h-32 focus:ring-4 focus:ring-indigo-500/5 transition-all" />
                           <div className="grid grid-cols-2 gap-4">
-                              <button onClick={() => sendStaffAlert('WHATSAPP')} className="bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 hover:bg-black active:scale-[0.98] transition-all">
-                                <MessageCircle size={18} /> WhatsApp Alert
-                              </button>
-                              <button onClick={() => sendStaffAlert('SMS')} className="bg-white border text-slate-900 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-50 active:scale-[0.98] transition-all">
-                                <Phone size={18} /> SMS Dispatch
-                              </button>
+                              <button onClick={() => triggerPA('CRITICAL_CROWD')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><AlertCircle size={16} className="text-red-500" /> CROWD_ALERT</button>
+                              <button onClick={() => triggerPA('GATE_RULE')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><Radio size={16} className="text-indigo-500" /> GATE_ALERT</button>
                           </div>
+                          <textarea value={customPaText} onChange={(e) => setCustomPaText(e.target.value)} placeholder="Type manual PA announcement..." className="w-full bg-slate-50 border rounded-3xl p-6 text-sm h-32 outline-none focus:ring-4 focus:ring-orange-500/5 transition-all" />
+                          <button onClick={() => triggerPA(null)} disabled={isSynthesizing} className="w-full bg-orange-600 text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3 hover:bg-orange-700 transition-all">
+                              {isSynthesizing ? <Loader2 className="animate-spin" size={20} /> : <Volume2 size={20} />}
+                              {isSynthesizing ? 'SYNTHESIZING...' : 'DISPATCH AUDIO'}
+                          </button>
                       </div>
+                    </div>
                   </div>
+                )}
 
-                  <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col">
-                    <div className="flex items-center gap-3 mb-8 border-b pb-4">
-                        <div className="bg-orange-50 p-2.5 rounded-2xl"><Megaphone size={20} className="text-orange-600" /></div>
-                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Public Address Dispatch</h4>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                            {[Language.ENGLISH, Language.TELUGU, Language.HINDI].map(lang => (
-                                <button key={lang} onClick={() => setPaLanguage(lang)} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest ${paLanguage === lang ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>{lang.slice(0, 3)}</button>
-                            ))}
+                {dashboardTab === DashboardTab.EMERGENCY_DISPATCH && (
+                  <div className="space-y-6 max-w-4xl mx-auto">
+                    <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col relative overflow-hidden">
+                        <div className="flex justify-between items-center mb-8 border-b pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-slate-100 p-2.5 rounded-2xl"><MessageCircle size={20} className="text-indigo-600" /></div>
+                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Tactical Staff Broadcast Hub</h4>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => triggerPA('CRITICAL_CROWD')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><AlertCircle size={16} className="text-red-500" /> CROWD_ALERT</button>
-                            <button onClick={() => triggerPA('GATE_RULE')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><Radio size={16} className="text-indigo-500" /> GATE_ALERT</button>
+                        <div className="space-y-6 flex-1 flex flex-col">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                               <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admin Target Hub</label>
+                                  <div className="flex items-center gap-3 bg-slate-50 border rounded-2xl px-5 py-4">
+                                      <Smartphone size={16} className="text-slate-400" />
+                                      <input value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} placeholder="91xxxxxxxxxx" className="bg-transparent text-sm font-bold text-slate-800 outline-none w-full" />
+                                  </div>
+                               </div>
+                               <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Intervention Role</label>
+                                  <select value={staffRole} onChange={(e) => setStaffRole(e.target.value as StaffRole)} className="w-full bg-slate-50 border rounded-2xl px-5 py-4 text-xs font-black uppercase text-slate-700 outline-none">
+                                     <option value="SECURITY">Security / Police</option>
+                                     <option value="VOLUNTEER">Pilgrim Support</option>
+                                     <option value="MEDICAL">EMS Units</option>
+                                  </select>
+                               </div>
+                            </div>
+                            <textarea value={staffMessage} onChange={(e) => setStaffMessage(e.target.value)} placeholder="Enter operational directive for field staff..." className="flex-1 bg-slate-50 border rounded-3xl p-6 text-sm resize-none outline-none font-medium min-h-[150px] focus:ring-4 focus:ring-indigo-500/5 transition-all" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={() => sendStaffAlert('WHATSAPP')} className="bg-slate-900 text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 hover:bg-black active:scale-[0.98] transition-all">
+                                  <MessageCircle size={20} /> WhatsApp Alert
+                                </button>
+                                <button onClick={() => sendStaffAlert('SMS')} className="bg-white border text-slate-900 py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-50 active:scale-[0.98] transition-all">
+                                  <Phone size={20} /> SMS Dispatch
+                                </button>
+                            </div>
                         </div>
-                        <textarea value={customPaText} onChange={(e) => setCustomPaText(e.target.value)} placeholder="Type manual PA announcement..." className="w-full bg-slate-50 border rounded-3xl p-6 text-sm h-32 outline-none focus:ring-4 focus:ring-orange-500/5 transition-all" />
-                        <button onClick={() => triggerPA(null)} disabled={isSynthesizing} className="w-full bg-orange-600 text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3 hover:bg-orange-700 transition-all">
-                            {isSynthesizing ? <Loader2 className="animate-spin" size={20} /> : <Volume2 size={20} />}
-                            {isSynthesizing ? 'SYNTHESIZING...' : 'DISPATCH AUDIO'}
-                        </button>
                     </div>
                   </div>
-                </div>
-                <VideoAnalytics />
-            </>
+                )}
+              </div>
+            </div>
           )}
 
           {currentView === AppView.ENDOWMENTS_OVERVIEW && <EndowmentsDashboard temples={temples} onOnboardClick={() => setCurrentView(AppView.TEMPLE_ONBOARDING)} onViewDetails={handleViewTempleDetails} />}
@@ -484,7 +543,14 @@ const App: React.FC = () => {
           {currentView === AppView.TEMPLE_ONBOARDING && <TempleOnboarding onComplete={handleOnboardComplete} />}
           {currentView === AppView.COMPLIANCE_VAULT && <ComplianceVault incidents={incidents} />}
           {currentView === AppView.ANALYTICS && <div className="space-y-6"><FootfallPredictionChart /><GateLoadChart /></div>}
-          {currentView === AppView.ASSISTANT && <div className="max-w-5xl mx-auto h-[750px] shadow-2xl rounded-2xl overflow-hidden"><DevoteeAssistant /></div>}
+          {currentView === AppView.ASSISTANT && (
+            <div className="max-w-5xl mx-auto h-[750px] shadow-2xl rounded-2xl overflow-hidden">
+              <DevoteeAssistant 
+                activeLanguage={activeLanguage} 
+                onLanguageChange={setActiveLanguage} 
+              />
+            </div>
+          )}
           
           {currentView === AppView.SETTINGS && (
             <div className="max-w-xl mx-auto py-10">

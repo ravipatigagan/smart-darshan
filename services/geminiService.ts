@@ -89,7 +89,7 @@ async function decodeRawPcmToBuffer(
 
 const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
-const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<AudioBuffer | null> => {
+export const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<AudioBuffer | null> => {
   if (!process.env.API_KEY) return null;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
@@ -122,13 +122,13 @@ const synthesizeTts = async (text: string, voiceName: string = 'Kore'): Promise<
   }
 };
 
-const translateWithGemini = async (text: string, targetLang: string): Promise<string> => {
+export const translateWithGemini = async (text: string, targetLang: string): Promise<string> => {
   if (!process.env.API_KEY) return text;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Translate the following temple alert to ${targetLang}. Return ONLY the translated text: "${text}"`,
+      contents: `Translate the following temple assistant text to ${targetLang}. Return ONLY the translated text, preserving any factual details like times or gate names: "${text}"`,
     });
     return response.text || text;
   } catch (e) {
@@ -291,30 +291,58 @@ export const getChatResponse = async (
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const needsMaps = message.toLowerCase().includes('location') || message.toLowerCase().includes('where');
-  const datasetPrompt = `You are DivyaSahayak for Dwarakatirumala Temple. Be concise and respectful.`;
+  const lowerMsg = message.toLowerCase();
+  
+  // Grounding Detection Logic
+  const needsMaps = lowerMsg.includes('location') || lowerMsg.includes('where') || lowerMsg.includes('near') || lowerMsg.includes('route') || lowerMsg.includes('gate');
+  const needsSearch = lowerMsg.includes('today') || lowerMsg.includes('event') || lowerMsg.includes('latest') || lowerMsg.includes('festival') || lowerMsg.includes('timing');
+
+  const systemInstruction = `You are DivyaSahayak, the unified AI assistant for Dwarakatirumala Temple. 
+  Respond in ${language}. Be concise, helpful, and polite. 
+  Use grounding tools if the user asks for locations or news.`;
 
   try {
     if (needsMaps) {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: `${datasetPrompt}\nQuestion: ${message}`,
+        contents: `${systemInstruction}\nUser Question: ${message}`,
         config: {
           tools: [{ googleMaps: {} }],
-          toolConfig: { retrievalConfig: { latLng: { latitude: 16.9499, longitude: 81.2991 } } }
+          toolConfig: { 
+            retrievalConfig: { 
+              latLng: { latitude: 16.9499, longitude: 81.2991 }
+            } 
+          }
         },
       });
-      const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.filter((c: any) => c.maps).map((c: any) => ({ uri: c.maps.uri, title: c.maps.title })) || [];
-      return { text: response.text || "Map details found.", groundingLinks: links, isGroundingActive: true };
+      const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        ?.filter((c: any) => c.maps)
+        .map((c: any) => ({ uri: c.maps.uri, title: c.maps.title || "View on Google Maps" })) || [];
+      return { text: response.text || "I've located that on the map for you.", groundingLinks: links, isGroundingActive: true };
+    
+    } else if (needsSearch) {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `${systemInstruction}\nUser Question: ${message}`,
+        config: {
+          tools: [{ googleSearch: {} }]
+        },
+      });
+      const links = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        ?.filter((c: any) => c.web)
+        .map((c: any) => ({ uri: c.web.uri, title: c.web.title || "More Info" })) || [];
+      return { text: response.text || "I found some recent updates for you.", groundingLinks: links, isGroundingActive: true };
+    
     } else {
       const response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
-        contents: `${datasetPrompt}\nQuestion: ${message}`,
+        contents: `${systemInstruction}\nUser Question: ${message}`,
       });
-      return { text: response.text || "Namaskaram.", isGroundingActive: false };
+      return { text: response.text || "Namaskaram. How can I help you?", isGroundingActive: false };
     }
   } catch (error) {
-    return { text: "Systems momentarily busy." };
+    console.error("AI Assistant Error:", error);
+    return { text: "I'm experiencing a high load. Please try again in a moment." };
   }
 };
 

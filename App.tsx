@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp, Flame, Building2, ClipboardCheck, PlusCircle, ShieldAlert, Navigation, Trophy, Split, Sparkles, ChevronRight, Calendar, ArrowRight, Eye, Satellite
+  LayoutDashboard, BarChart3, MessageSquareText, Settings, Menu, ShieldCheck, Activity, Volume2, Megaphone, AlertCircle, Mic, Send, Radio, Smartphone, MessageCircle, Phone, Cpu, Key, Terminal, Info, Zap, AlertTriangle, Loader2, CheckCircle2, XCircle, Globe, ExternalLink, Sun, Users, Clock, Thermometer, TrendingUp, Flame, Building2, ClipboardCheck, PlusCircle, ShieldAlert, Navigation, Trophy, Split, Sparkles, ChevronRight, Calendar, ArrowRight, Eye, Satellite, Check, Edit3, X, ClipboardList
 } from 'lucide-react';
 import { AppView, CrowdMetric, Language, StaffRole, EnterpriseGatewayConfig, ProposedAlert, AlertAuditEntry, IncidentLifecycle, TempleStatus } from './types';
 import { FootfallPredictionChart, GateLoadChart } from './components/CrowdCharts';
@@ -174,6 +174,12 @@ const App: React.FC = () => {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [lastDispatchStatus, setLastDispatchStatus] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Decision Support Engine synchronization state
+  const [isDseExpanded, setIsDseExpanded] = useState(false);
+  const [miniEditingId, setMiniEditingId] = useState<string | null>(null);
+  const [miniEditBuffer, setMiniEditBuffer] = useState("");
+  const [miniExpandedPlaybookId, setMiniExpandedPlaybookId] = useState<string | null>(null);
   
   const [temples, setTemples] = useState<TempleStatus[]>(MOCK_TEMPLES);
   const [selectedTemple, setSelectedTemple] = useState<TempleStatus | null>(null);
@@ -288,6 +294,8 @@ const App: React.FC = () => {
     setIsSynthesizing(false);
   };
 
+  const pendingAlerts = proposedAlerts.filter(a => a.status === 'PENDING');
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden relative font-sans text-[13px]">
       {staffNotification && (
@@ -315,7 +323,7 @@ const App: React.FC = () => {
           <NavItem view={AppView.TEMPLE_ONBOARDING} icon={PlusCircle} label="Onboard Shrine" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
           <NavItem view={AppView.COMPLIANCE_VAULT} icon={ClipboardCheck} label="Compliance Vault" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
           <NavItem view={AppView.ANALYTICS} icon={BarChart3} label="Analytics" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
-          <NavItem view={AppView.ASSISTANT} icon={MessageSquareText} label="Devotee Aid" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
+          <NavItem view={AppView.ASSISTANT} icon={MessageSquareText} label="Divya Sahayak" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
           <NavItem view={AppView.SETTINGS} icon={Settings} label="Configuration" currentView={currentView} sidebarOpen={sidebarOpen} onClick={setCurrentView} />
         </div>
         <div className="p-4 border-t border-slate-800 space-y-3">
@@ -440,11 +448,99 @@ const App: React.FC = () => {
                           </div>
                         )}
                         <div className="bg-white rounded-[2.5rem] border shadow-2xl overflow-hidden">
-                           <div className="p-4 bg-slate-50 border-b flex items-center gap-3">
-                              <Navigation size={18} className="text-orange-600" />
-                              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Tactical Diversion Map</h4>
+                           {/* COLLAPSIBLE DECISION SUPPORT ENGINE HEADER */}
+                           <div 
+                             onClick={() => setIsDseExpanded(!isDseExpanded)}
+                             className="p-4 bg-slate-50 border-b flex items-center gap-3 cursor-pointer hover:bg-slate-100 transition-colors"
+                           >
+                              <ShieldAlert size={18} className="text-orange-600" />
+                              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Decision Support Engine</h4>
+                              <div className="flex items-center gap-2 ml-1">
+                                {pendingAlerts.length > 0 && (
+                                  <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                                    {pendingAlerts.length}
+                                  </span>
+                                )}
+                                <ChevronRight size={14} className={`text-slate-400 transition-transform ${isDseExpanded ? 'rotate-90' : ''}`} />
+                              </div>
                               <span className="ml-auto text-[10px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Traffic Sync</span>
                            </div>
+
+                           {/* INTEGRATED COLLAPSIBLE PANEL */}
+                           {isDseExpanded && (
+                             <div className="border-b bg-white max-h-[380px] overflow-y-auto scrollbar-hide animate-in slide-in-from-top duration-300">
+                                {pendingAlerts.length === 0 ? (
+                                  <div className="p-12 text-center space-y-3">
+                                    <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto">
+                                      <CheckCircle2 className="text-slate-300" size={24} />
+                                    </div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Queue Empty</p>
+                                    <p className="text-[11px] text-slate-500">No active anomalies requiring manual protocol approval.</p>
+                                  </div>
+                                ) : (
+                                  <div className="divide-y">
+                                    {pendingAlerts.map(alert => (
+                                      <div key={alert.id} className={`p-5 transition-all ${alert.severity === 'CRITICAL' ? 'bg-red-50/20' : 'bg-white'}`}>
+                                        <div className="flex flex-col gap-4">
+                                          <div className="flex items-center gap-3">
+                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                              alert.severity === 'CRITICAL' ? 'bg-red-600 text-white' : 'bg-orange-500 text-white'
+                                            }`}>
+                                              {alert.severity}
+                                            </span>
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{alert.category}</span>
+                                            <span className="text-[9px] font-mono text-slate-300 ml-auto">{alert.timestamp.toLocaleTimeString()}</span>
+                                          </div>
+                                          
+                                          {miniEditingId === alert.id ? (
+                                            <textarea 
+                                              value={miniEditBuffer} 
+                                              onChange={(e) => setMiniEditBuffer(e.target.value)}
+                                              className="w-full bg-slate-50 border rounded-xl p-3 text-xs font-medium outline-none h-20"
+                                            />
+                                          ) : (
+                                            <p className="text-xs font-bold text-slate-800 leading-relaxed italic border-l-4 border-slate-200 pl-3">
+                                              "{alert.message}"
+                                            </p>
+                                          )}
+
+                                          <div className="flex gap-2">
+                                            <button 
+                                              onClick={() => {
+                                                handleAlertAction(alert.id, 'APPROVE', miniEditingId === alert.id ? miniEditBuffer : undefined);
+                                                setMiniEditingId(null);
+                                              }}
+                                              className="flex-1 bg-slate-900 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black shadow-lg transition-all"
+                                            >
+                                              <Check size={12} /> {miniEditingId === alert.id ? 'Dispatch' : 'Approve'}
+                                            </button>
+                                            <button 
+                                              onClick={() => {
+                                                if (miniEditingId === alert.id) {
+                                                  setMiniEditingId(null);
+                                                } else {
+                                                  setMiniEditingId(alert.id);
+                                                  setMiniEditBuffer(alert.message);
+                                                }
+                                              }}
+                                              className="bg-white border text-slate-600 px-4 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+                                            >
+                                              <Edit3 size={14} />
+                                            </button>
+                                            <button 
+                                              onClick={() => handleAlertAction(alert.id, 'REJECT')}
+                                              className="bg-white border text-red-500 px-4 py-3 rounded-xl hover:bg-red-50 transition-colors"
+                                            >
+                                              <X size={14} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                             </div>
+                           )}
                            <CrowdHeatmap />
                         </div>
                       </div>
@@ -468,33 +564,13 @@ const App: React.FC = () => {
                 {dashboardTab === DashboardTab.ALERTS_COMMS && (
                   <div className="space-y-6">
                     <DevoteeAlertPortal />
-                    <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col max-w-4xl mx-auto">
-                      <div className="flex items-center gap-3 mb-8 border-b pb-4">
-                          <div className="bg-orange-50 p-2.5 rounded-2xl"><Megaphone size={20} className="text-orange-600" /></div>
-                          <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Public Address Dispatch</h4>
-                      </div>
-                      <div className="space-y-6">
-                          <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                              {[Language.ENGLISH, Language.TELUGU, Language.HINDI].map(lang => (
-                                  <button key={lang} onClick={() => setPaLanguage(lang)} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest ${paLanguage === lang ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>{lang.slice(0, 3)}</button>
-                              ))}
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                              <button onClick={() => triggerPA('CRITICAL_CROWD')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><AlertCircle size={16} className="text-red-500" /> CROWD_ALERT</button>
-                              <button onClick={() => triggerPA('GATE_RULE')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><Radio size={16} className="text-indigo-500" /> GATE_ALERT</button>
-                          </div>
-                          <textarea value={customPaText} onChange={(e) => setCustomPaText(e.target.value)} placeholder="Type manual PA announcement..." className="w-full bg-slate-50 border rounded-3xl p-6 text-sm h-32 outline-none focus:ring-4 focus:ring-orange-500/5 transition-all" />
-                          <button onClick={() => triggerPA(null)} disabled={isSynthesizing} className="w-full bg-orange-600 text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3 hover:bg-orange-700 transition-all">
-                              {isSynthesizing ? <Loader2 className="animate-spin" size={20} /> : <Volume2 size={20} />}
-                              {isSynthesizing ? 'SYNTHESIZING...' : 'DISPATCH AUDIO'}
-                          </button>
-                      </div>
-                    </div>
+                    {/* Public Address Dispatch block removed from here */}
                   </div>
                 )}
 
                 {dashboardTab === DashboardTab.EMERGENCY_DISPATCH && (
                   <div className="space-y-6 max-w-4xl mx-auto">
+                    {/* Tactical Staff Broadcast Hub */}
                     <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col relative overflow-hidden">
                         <div className="flex justify-between items-center mb-8 border-b pb-4">
                             <div className="flex items-center gap-3">
@@ -530,6 +606,30 @@ const App: React.FC = () => {
                                 </button>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Public Address Dispatch (Moved here) */}
+                    <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col max-w-4xl mx-auto">
+                      <div className="flex items-center gap-3 mb-8 border-b pb-4">
+                          <div className="bg-orange-50 p-2.5 rounded-2xl"><Megaphone size={20} className="text-orange-600" /></div>
+                          <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-800">Public Address Dispatch</h4>
+                      </div>
+                      <div className="space-y-6">
+                          <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                              {[Language.ENGLISH, Language.TELUGU, Language.HINDI].map(lang => (
+                                  <button key={lang} onClick={() => setPaLanguage(lang)} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest ${paLanguage === lang ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>{lang.slice(0, 3)}</button>
+                              ))}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                              <button onClick={() => triggerPA('CRITICAL_CROWD')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><AlertCircle size={16} className="text-red-500" /> CROWD_ALERT</button>
+                              <button onClick={() => triggerPA('GATE_RULE')} className="p-4 rounded-2xl bg-slate-50 border text-[9px] font-black uppercase text-slate-700 flex items-center gap-3 transition-all hover:bg-slate-100" disabled={isSynthesizing}><Radio size={16} className="text-indigo-500" /> GATE_ALERT</button>
+                          </div>
+                          <textarea value={customPaText} onChange={(e) => setCustomPaText(e.target.value)} placeholder="Type manual PA announcement..." className="w-full bg-slate-50 border rounded-3xl p-6 text-sm h-32 outline-none focus:ring-4 focus:ring-orange-500/5 transition-all" />
+                          <button onClick={() => triggerPA(null)} disabled={isSynthesizing} className="w-full bg-orange-600 text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3 hover:bg-orange-700 transition-all">
+                              {isSynthesizing ? <Loader2 className="animate-spin" size={20} /> : <Volume2 size={20} />}
+                              {isSynthesizing ? 'SYNTHESIZING...' : 'DISPATCH AUDIO'}
+                          </button>
+                      </div>
                     </div>
                   </div>
                 )}

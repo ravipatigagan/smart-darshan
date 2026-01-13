@@ -42,7 +42,8 @@ export const DevoteeAssistant: React.FC<DevoteeAssistantProps> = ({ activeLangua
   const audioCtxRef = useRef<AudioContext | null>(null);
   const recognitionRef = useRef<any>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
-  const lastModelMsgIdRef = useRef<string | null>(null);
+  // Initialize ref with 'welcome' to prevent automatic speech on initial mount
+  const lastModelMsgIdRef = useRef<string | null>('welcome');
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,7 +52,13 @@ export const DevoteeAssistant: React.FC<DevoteeAssistantProps> = ({ activeLangua
   // Handle auto-speech when a new model message arrives
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'model' && isVoiceMode && lastMsg.id !== lastModelMsgIdRef.current) {
+    if (
+      lastMsg && 
+      lastMsg.role === 'model' && 
+      isVoiceMode && 
+      lastMsg.id !== lastModelMsgIdRef.current &&
+      lastMsg.id !== 'welcome' // Double-check safety for welcome message
+    ) {
       lastModelMsgIdRef.current = lastMsg.id;
       // Immediate trigger for auto-playback
       playSpeech(lastMsg.text);

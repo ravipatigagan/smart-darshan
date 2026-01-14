@@ -168,18 +168,15 @@ const App: React.FC = () => {
   const [staffRole, setStaffRole] = useState<StaffRole>('SECURITY');
   const [staffMessage, setStaffMessage] = useState("");
   const [paLanguage, setPaLanguage] = useState<Language>(Language.ENGLISH);
-  // Persist conversation language globally
   const [activeLanguage, setActiveLanguage] = useState<Language>(Language.ENGLISH);
   const [customPaText, setCustomPaText] = useState("");
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [lastDispatchStatus, setLastDispatchStatus] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Decision Support Engine synchronization state
   const [isDseExpanded, setIsDseExpanded] = useState(false);
   const [miniEditingId, setMiniEditingId] = useState<string | null>(null);
   const [miniEditBuffer, setMiniEditBuffer] = useState("");
-  const [miniExpandedPlaybookId, setMiniExpandedPlaybookId] = useState<string | null>(null);
   
   const [temples, setTemples] = useState<TempleStatus[]>(MOCK_TEMPLES);
   const [selectedTemple, setSelectedTemple] = useState<TempleStatus | null>(null);
@@ -371,7 +368,6 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
           {currentView === AppView.DASHBOARD && (
             <div className="space-y-6">
-              {/* DASHBOARD TABS NAVIGATION */}
               <div className="bg-white border p-1 rounded-2xl flex gap-1 shadow-sm sticky top-0 z-30 mb-2">
                 <button 
                   onClick={() => setDashboardTab(DashboardTab.LIVE_OPS)}
@@ -399,11 +395,9 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {/* TAB CONTENT RENDERING */}
               <div className="animate-in fade-in duration-500">
                 {dashboardTab === DashboardTab.LIVE_OPS && (
                   <div className="space-y-6">
-                    {/* CCTV feeds prioritized at the top as requested */}
                     <VideoAnalytics />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -448,7 +442,6 @@ const App: React.FC = () => {
                           </div>
                         )}
                         <div className="bg-white rounded-[2.5rem] border shadow-2xl overflow-hidden">
-                           {/* COLLAPSIBLE DECISION SUPPORT ENGINE HEADER */}
                            <div 
                              onClick={() => setIsDseExpanded(!isDseExpanded)}
                              className="p-4 bg-slate-50 border-b flex items-center gap-3 cursor-pointer hover:bg-slate-100 transition-colors"
@@ -466,7 +459,6 @@ const App: React.FC = () => {
                               <span className="ml-auto text-[10px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Traffic Sync</span>
                            </div>
 
-                           {/* INTEGRATED COLLAPSIBLE PANEL */}
                            {isDseExpanded && (
                              <div className="border-b bg-white max-h-[380px] overflow-y-auto scrollbar-hide animate-in slide-in-from-top duration-300">
                                 {pendingAlerts.length === 0 ? (
@@ -564,13 +556,11 @@ const App: React.FC = () => {
                 {dashboardTab === DashboardTab.ALERTS_COMMS && (
                   <div className="space-y-6">
                     <DevoteeAlertPortal />
-                    {/* Public Address Dispatch block removed from here */}
                   </div>
                 )}
 
                 {dashboardTab === DashboardTab.EMERGENCY_DISPATCH && (
                   <div className="space-y-6 max-w-4xl mx-auto">
-                    {/* Tactical Staff Broadcast Hub */}
                     <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col relative overflow-hidden">
                         <div className="flex justify-between items-center mb-8 border-b pb-4">
                             <div className="flex items-center gap-3">
@@ -608,7 +598,6 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Public Address Dispatch (Moved here) */}
                     <div className="bg-white rounded-[2.5rem] border shadow-xl p-8 flex flex-col max-w-4xl mx-auto">
                       <div className="flex items-center gap-3 mb-8 border-b pb-4">
                           <div className="bg-orange-50 p-2.5 rounded-2xl"><Megaphone size={20} className="text-orange-600" /></div>
